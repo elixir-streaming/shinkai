@@ -1,0 +1,24 @@
+defmodule Shinkai.Track do
+  @moduledoc """
+  Module describing a media track.
+  """
+
+  @type t :: %__MODULE__{
+          id: integer(),
+          type: :audio | :video,
+          codec: :h264 | :h265 | :aac | :unknown,
+          timescale: non_neg_integer(),
+          priv_data: term()
+        }
+
+  @enforce_keys [:id, :type, :codec, :timescale]
+  defstruct @enforce_keys ++ [:priv_data]
+
+  @doc """
+  Creates a new track.
+  """
+  @spec new(opts :: keyword()) :: t()
+  def new(opts) do
+    struct(__MODULE__, opts)
+  end
+end

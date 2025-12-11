@@ -24,8 +24,8 @@ defmodule Shinkai.MixProject do
     [
       {:phoenix_pubsub, "~> 2.2"},
       {:rtsp, "~> 0.5.0"},
-      # {:rtsp, path: "/home/ghilas/p/OpenSourceProjects/elixir/rtsp"},
       {:hlx, "~> 0.3.0"},
+      {:yaml_elixir, "~> 2.12"},
       {:ex_doc, "~> 0.30", only: :dev, runtime: false}
     ]
   end

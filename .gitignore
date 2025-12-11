@@ -21,3 +21,5 @@ shinkai-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+/shinkai.yml
