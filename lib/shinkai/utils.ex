@@ -6,4 +6,7 @@ defmodule Shinkai.Utils do
 
   @spec packets_topic(String.t()) :: String.t()
   def packets_topic(id), do: "source:packets:#{id}"
+
+  @spec state_topic(String.t()) :: String.t()
+  def state_topic(id), do: "source:state:#{id}"
 end

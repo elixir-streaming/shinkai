@@ -26,8 +26,19 @@ defmodule Shinkai.Sink.Hls do
       segment_type: config[:segment_type]
     ]
 
+    File.rm_rf!(hls_config[:storage_dir])
+
     :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, tracks_topic(id))
-    {:ok, %{writer: Writer.new!(hls_config), source_id: id, tracks: %{}, last_sample: %{}}}
+    :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, state_topic(id))
+
+    {:ok,
+     %{
+       writer: Writer.new!(hls_config),
+       config: hls_config,
+       source_id: id,
+       tracks: %{},
+       last_sample: %{}
+     }}
   end
 
   @impl true
@@ -83,6 +94,13 @@ defmodule Shinkai.Sink.Hls do
              last_sample: Map.put(state.last_sample, packet.track_id, sample)
          }}
     end
+  end
+
+  @impl true
+  def handle_info(:disconnected, state) do
+    :ok = Writer.close(state.writer)
+    :ok = Phoenix.PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
+    {:noreply, %{state | writer: Writer.new!(state.config), last_sample: %{}}}
   end
 
   defp packet_to_sample(packet) do

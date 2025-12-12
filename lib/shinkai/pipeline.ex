@@ -5,8 +5,8 @@ defmodule Shinkai.Pipeline do
 
   alias Shinkai.{Config, Sink, Sources}
 
-  def start_link(opts) do
-    Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
+  def start_link(source) do
+    Supervisor.start_link(__MODULE__, source, name: :"#{source.id}")
   end
 
   @impl true
@@ -16,6 +16,6 @@ defmodule Shinkai.Pipeline do
       {Sources.RTSP, source}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_all)
   end
 end
