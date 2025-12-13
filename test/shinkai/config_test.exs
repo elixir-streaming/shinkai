@@ -15,7 +15,7 @@ defmodule Shinkai.ConfigTest do
 
       config = Config.validate(user_config)
 
-      assert Keyword.keys(config) == [:hls]
+      assert Keyword.keys(config) == [:server, :hls]
 
       assert %{
                segment_type: :low_latency,
@@ -24,6 +24,11 @@ defmodule Shinkai.ConfigTest do
                max_segments: 10,
                storage_dir: "/var/shinkai/hls"
              } == Map.new(config[:hls])
+
+      assert %{
+               enabled: true,
+               port: 8888
+             } == Map.new(config[:server])
     end
 
     test "raise on invalid values" do

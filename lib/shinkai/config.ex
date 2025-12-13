@@ -3,9 +3,13 @@ defmodule Shinkai.Config do
 
   use GenServer
 
-  @top_level_keys [:hls]
+  @top_level_keys [:server, :hls]
 
   @default_config [
+    server: [
+      enabled: true,
+      port: 8888
+    ],
     hls: [
       storage_dir: "/tmp/shinkai/hls",
       max_segments: 7,
@@ -90,6 +94,11 @@ defmodule Shinkai.Config do
     parse_and_validate(rest, [{:hls, hls_config} | acc])
   end
 
+  defp parse_and_validate([{:server, server_config} | rest], acc) do
+    server_config = parse_and_validate_server(server_config)
+    parse_and_validate(rest, [{:server, server_config} | acc])
+  end
+
   defp parse_and_validate_hls(config, acc \\ [])
 
   defp parse_and_validate_hls(nil, _acc), do: []
@@ -141,6 +150,31 @@ defmodule Shinkai.Config do
     raise ArgumentError, """
     Invalid HLS configuration format detected.
     Config: #{inspect(config)}.
+    """
+  end
+
+  defp parse_and_validate_server(config, acc \\ [])
+  defp parse_and_validate_server(nil, _acc), do: []
+  defp parse_and_validate_server([], acc), do: acc
+
+  defp parse_and_validate_server(config, acc) when is_map(config) do
+    parse_and_validate_server(Map.to_list(config), acc)
+  end
+
+  defp parse_and_validate_server([{key, value} | rest], acc)
+       when key in ["enabled", :enabled] and is_boolean(value) do
+    parse_and_validate_server(rest, [{:enabled, value} | acc])
+  end
+
+  defp parse_and_validate_server([{key, value} | rest], acc)
+       when key in [:port, "port"] and is_integer(value) and value > 0 and value < 65_536 do
+    parse_and_validate_server(rest, [{:port, value} | acc])
+  end
+
+  defp parse_and_validate_server([{key, value} | _rest], _acc) do
+    raise ArgumentError, """
+    Invalid Server configuration key or value detected.
+    Key: #{inspect(key)}, Value: #{inspect(value)}.
     """
   end
 end

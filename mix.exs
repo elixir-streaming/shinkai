@@ -27,6 +27,8 @@ defmodule Shinkai.MixProject do
       {:rtsp, "~> 0.5.0"},
       {:hlx, "~> 0.3.0"},
       {:yaml_elixir, "~> 2.12"},
+      {:plug, "~> 1.19", optional: true},
+      {:bandit, "~> 1.8", optional: true},
       {:ex_doc, "~> 0.30", only: :dev, runtime: false}
     ]
   end

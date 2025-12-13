@@ -1,3 +1,12 @@
+server:
+    enabled: true
+    port: 8888
+
+hls:
+    segment_type: fmp4
+    segment_duration: 4000
+    max_segments: 7
+
 paths:
   # ever-vrai:
   #  source: rtsp://admin:admin@192.168.1.2/source

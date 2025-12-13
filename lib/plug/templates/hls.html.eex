@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Shinkai hls</title>
+        <style>
+           html, body {
+             margin: 0;
+             padding: 0;
+             width: 100%;
+             height: 100%;
+             overflow: hidden;
+             background: black;
+           }
+
+           video {
+             width: 100vw;
+             height: 100vh;
+           }
+         </style>
+    </head>
+    <body>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.6.13/hls.js"></script>
+        <video id="video" controls autoplay muted></video>
+        <script>
+            var video = document.getElementById("video");
+            var videoSrc = "<%= @source_id %>/master.m3u8";
+            if (Hls.isSupported()) {
+                var hls = new Hls();
+                hls.loadSource(videoSrc);
+                hls.attachMedia(video);
+            } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+                video.src = videoSrc;
+            }
+        </script>
+    </body>
+</html>
