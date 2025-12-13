@@ -5,13 +5,18 @@ defmodule Shinkai do
 
   alias Shinkai.Sources.Source
 
-  @config_path "shinkai.yml"
-
   @doc false
   def load() do
-    :ets.new(:sources, [:public, :named_table, :set, heir: :none])
-    config = YamlElixir.read_from_file!(@config_path)
-    parse_sources(config["paths"] || %{})
+    config_path = config_path()
+    config = if File.exists?(config_path), do: YamlElixir.read_from_file!(config_path), else: %{}
+    {paths, config} = Map.pop(config, "paths", %{})
+
+    parse_sources(paths)
+    Shinkai.Config.validate(config)
+  end
+
+  defp config_path() do
+    System.get_env("SHINKAI_CONFIG_PATH", Application.get_env(:shinkai, :config_path))
   end
 
   defp parse_sources(paths) when is_map(paths) do

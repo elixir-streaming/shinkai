@@ -15,16 +15,9 @@ defmodule Shinkai.Sink.Hls do
 
   @impl true
   def init(opts) do
-    {id, config} = Keyword.pop!(opts, :id)
-
-    hls_config = [
-      type: :master,
-      storage_dir: Path.join(config[:storage_dir], id),
-      segment_duration: config[:segment_duration],
-      part_duration: config[:part_duration],
-      max_segments: config[:max_segments],
-      segment_type: config[:segment_type]
-    ]
+    {id, hls_config} = Keyword.pop!(opts, :id)
+    {dir, hls_config} = Keyword.pop(hls_config, :storage_dir)
+    hls_config = [type: :master, storage_dir: Path.join(dir, id)] ++ hls_config
 
     File.rm_rf!(hls_config[:storage_dir])
 
@@ -76,24 +69,13 @@ defmodule Shinkai.Sink.Hls do
   end
 
   @impl true
+  def handle_info({:packet, packets}, state) when is_list(packets) do
+    {:noreply, Enum.reduce(packets, state, &do_handle_packet/2)}
+  end
+
+  @impl true
   def handle_info({:packet, packet}, state) do
-    case Map.fetch(state.last_sample, packet.track_id) do
-      :error ->
-        last_samples = Map.put(state.last_sample, packet.track_id, packet_to_sample(packet))
-        {:noreply, %{state | last_sample: last_samples}}
-
-      {:ok, last_sample} ->
-        variant_name = state.tracks[packet.track_id].type |> to_string()
-        sample = packet_to_sample(packet)
-        last_sample = %{last_sample | duration: sample.dts - last_sample.dts}
-
-        {:noreply,
-         %{
-           state
-           | writer: Writer.write_sample(state.writer, variant_name, last_sample),
-             last_sample: Map.put(state.last_sample, packet.track_id, sample)
-         }}
-    end
+    {:noreply, do_handle_packet(packet, state)}
   end
 
   @impl true
@@ -101,6 +83,25 @@ defmodule Shinkai.Sink.Hls do
     :ok = Writer.close(state.writer)
     :ok = Phoenix.PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
     {:noreply, %{state | writer: Writer.new!(state.config), last_sample: %{}}}
+  end
+
+  defp do_handle_packet(packet, state) do
+    case Map.fetch(state.last_sample, packet.track_id) do
+      :error ->
+        last_samples = Map.put(state.last_sample, packet.track_id, packet_to_sample(packet))
+        %{state | last_sample: last_samples}
+
+      {:ok, last_sample} ->
+        variant_name = state.tracks[packet.track_id].type |> to_string()
+        sample = packet_to_sample(packet)
+        last_sample = %{last_sample | duration: sample.dts - last_sample.dts}
+
+        %{
+          state
+          | writer: Writer.write_sample(state.writer, variant_name, last_sample),
+            last_sample: Map.put(state.last_sample, packet.track_id, sample)
+        }
+    end
   end
 
   defp packet_to_sample(packet) do

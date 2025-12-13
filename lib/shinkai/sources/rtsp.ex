@@ -40,19 +40,19 @@ defmodule Shinkai.Sources.RTSP do
   def handle_info(:reconnect, state), do: do_connect(state)
 
   @impl true
-  def handle_info(
-        {:rtsp, _pid, {id, {sample, rtp_timestamp, keyframe?, _timestamp}}},
-        state
-      ) do
-    packet =
-      Shinkai.Packet.new(sample,
-        track_id: state.tracks[id].id,
-        dts: rtp_timestamp,
-        pts: rtp_timestamp,
-        sync?: keyframe?
-      )
+  def handle_info({:rtsp, _pid, {id, sample_or_samples}}, state) do
+    track_id = state.tracks[id].id
 
-    :ok = Phoenix.PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, packet})
+    packets =
+      case sample_or_samples do
+        samples when is_list(samples) ->
+          Enum.map(samples, &packet_from_sample(track_id, &1))
+
+        sample ->
+          packet_from_sample(track_id, sample)
+      end
+
+    :ok = Phoenix.PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, packets})
 
     {:noreply, state}
   end
@@ -95,14 +95,31 @@ defmodule Shinkai.Sources.RTSP do
     tracks
     |> Enum.with_index(1)
     |> Map.new(fn {track, id} ->
-      # Get priv data from rtpmap
+      codec = codec(String.downcase(track.rtpmap.encoding))
+
       {track.control_path,
        Track.new(
          id: id,
          type: track.type,
-         codec: track.rtpmap.encoding |> String.downcase() |> String.to_atom(),
-         timescale: track.rtpmap.clock_rate
+         codec: codec,
+         timescale: track.rtpmap.clock_rate,
+         priv_data: priv_data(codec, track.fmtp)
        )}
     end)
+  end
+
+  defp codec("mpeg4-generic"), do: :aac
+  defp codec(other), do: String.to_atom(other)
+
+  defp priv_data(:aac, fmtp), do: MediaCodecs.MPEG4.AudioSpecificConfig.parse(fmtp.config)
+  defp priv_data(_codec, _fmtp), do: nil
+
+  defp packet_from_sample(track_id, {payload, pts, sync?, _timestamp}) do
+    Shinkai.Packet.new(payload,
+      track_id: track_id,
+      dts: pts,
+      pts: pts,
+      sync?: sync?
+    )
   end
 end

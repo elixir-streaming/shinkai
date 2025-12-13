@@ -11,8 +11,10 @@ defmodule Shinkai.Pipeline do
 
   @impl true
   def init(%Sources.Source{id: id} = source) do
+    hls_config = Shinkai.Config.get_config(:hls)
+
     children = [
-      {Sink.Hls, [id: id] ++ Config.default_config(:hls)},
+      {Sink.Hls, [id: id] ++ hls_config},
       {Sources.RTSP, source}
     ]
 
