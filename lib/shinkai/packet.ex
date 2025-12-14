@@ -1,5 +1,7 @@
 defmodule Shinkai.Packet do
-  @moduledoc false
+  @moduledoc """
+  Module describing a media packet.
+  """
 
   @compile {:inline, [new: 2]}
 

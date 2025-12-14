@@ -5,5 +5,8 @@ defmodule Shinkai.Sources.Storage do
 
   alias Shinkai.Sources.Source
 
+  @doc """
+  Callback invoked to get all the available sources.
+  """
   @callback all() :: [Source.t()]
 end

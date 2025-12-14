@@ -1,5 +1,7 @@
 if Code.ensure_loaded?(Plug) do
   defmodule Plug.Shinkai.Router do
+    @moduledoc false
+
     require EEx
 
     use Plug.Router
@@ -44,12 +46,20 @@ if Code.ensure_loaded?(Plug) do
       end
     end
 
+    match _ do
+      send_resp(conn, 404, "Not Found")
+    end
+
     defp hls_dir(), do: Shinkai.Config.get_config(:hls)[:storage_dir]
 
     defp file_response(conn, content_type, path) do
-      conn
-      |> put_resp_content_type(content_type)
-      |> send_file(200, path)
+      if File.exists?(path) do
+        conn
+        |> put_resp_content_type(content_type)
+        |> send_file(200, path)
+      else
+        send_resp(conn, 404, "Not Found")
+      end
     end
   end
 end

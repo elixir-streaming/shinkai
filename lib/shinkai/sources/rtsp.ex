@@ -12,6 +12,7 @@ defmodule Shinkai.Sources.RTSP do
   @timeout 6_000
   @reconnect_timeout 5_000
 
+  @spec start_link(Shinkai.Sources.Source.t()) :: GenServer.on_start()
   def start_link(source) do
     GenServer.start_link(__MODULE__, source)
   end
@@ -27,7 +28,9 @@ defmodule Shinkai.Sources.RTSP do
       id: source.id,
       rtsp_pid: pid,
       tracks: %{},
-      packets_topic: packets_topic(source.id)
+      packets_topic: packets_topic(source.id),
+      buffer?: false,
+      packets: []
     }
 
     {:ok, state, {:continue, :connect}}
@@ -40,19 +43,34 @@ defmodule Shinkai.Sources.RTSP do
   def handle_info(:reconnect, state), do: do_connect(state)
 
   @impl true
+  def handle_info({:rtsp, _pid, {id, sample_or_samples}} = msg, %{buffer?: true} = state) do
+    # buffer until we get a video packet
+    # and then drop all packets with dts < dts of that video packet
+    track = state.tracks[id]
+    packets = to_packets(sample_or_samples, track.id)
+
+    if track.type == :video do
+      max_dts = List.first(List.wrap(packets)).dts
+
+      state.packets
+      |> Enum.reverse()
+      |> List.flatten()
+      |> Enum.filter(&(&1.dts < max_dts))
+      |> then(&Phoenix.PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, &1}))
+
+      handle_info(msg, %{state | buffer?: false, packets: []})
+    else
+      {:noreply, %{state | packets: [packets | state.packets]}}
+    end
+  end
+
   def handle_info({:rtsp, _pid, {id, sample_or_samples}}, state) do
-    track_id = state.tracks[id].id
-
-    packets =
-      case sample_or_samples do
-        samples when is_list(samples) ->
-          Enum.map(samples, &packet_from_sample(track_id, &1))
-
-        sample ->
-          packet_from_sample(track_id, sample)
-      end
-
-    :ok = Phoenix.PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, packets})
+    :ok =
+      Phoenix.PubSub.broadcast(
+        Shinkai.PubSub,
+        state.packets_topic,
+        {:packet, to_packets(sample_or_samples, state.tracks[id].id)}
+      )
 
     {:noreply, state}
   end
@@ -75,6 +93,9 @@ defmodule Shinkai.Sources.RTSP do
     with {:ok, tracks} <- RTSP.connect(state.rtsp_pid, @timeout),
          tracks <- build_tracks(tracks),
          :ok <- RTSP.play(state.rtsp_pid) do
+      codecs = tracks |> Map.values() |> Enum.map(& &1.codec) |> Enum.join(", ")
+      Logger.info("[#{state.id}] start reading from #{map_size(tracks)} tracks (#{codecs})")
+
       :ok =
         Phoenix.PubSub.broadcast(
           Shinkai.PubSub,
@@ -82,7 +103,9 @@ defmodule Shinkai.Sources.RTSP do
           {:tracks, Map.values(tracks)}
         )
 
-      {:noreply, %{state | tracks: tracks}}
+      buffer? = map_size(tracks) > 1 and Enum.any?(Map.values(tracks), &(&1.type == :video))
+
+      {:noreply, %{state | tracks: tracks, buffer?: buffer?}}
     else
       {:error, reason} ->
         Logger.error("[#{state.id}] rtsp connection failed: #{inspect(reason)}")
@@ -113,6 +136,12 @@ defmodule Shinkai.Sources.RTSP do
 
   defp priv_data(:aac, fmtp), do: MediaCodecs.MPEG4.AudioSpecificConfig.parse(fmtp.config)
   defp priv_data(_codec, _fmtp), do: nil
+
+  defp to_packets(samples, track_id) when is_list(samples) do
+    Enum.map(samples, &packet_from_sample(track_id, &1))
+  end
+
+  defp to_packets(sample, track_id), do: packet_from_sample(track_id, sample)
 
   defp packet_from_sample(track_id, {payload, pts, sync?, _timestamp}) do
     Shinkai.Packet.new(payload,
