@@ -37,7 +37,8 @@ defmodule Shinkai.MixProject do
       {:yaml_elixir, "~> 2.12"},
       {:plug, "~> 1.19", optional: true},
       {:bandit, "~> 1.8", optional: true},
-      {:ex_doc, "~> 0.30", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.30", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 

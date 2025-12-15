@@ -7,6 +7,7 @@ defmodule Shinkai.RTSP.Server.Handler do
 
   alias ExMP4.Reader
   alias Membrane.RTSP.Response
+  alias Shinkai.RTSP.MediaStreamer
 
   @impl true
   def init(opts) do
@@ -50,7 +51,7 @@ defmodule Shinkai.RTSP.Server.Handler do
       # before sending media data
       Process.sleep(100)
 
-      Shinkai.RTSP.MediaStreamer.start_streaming(
+      MediaStreamer.start_streaming(
         Reader.new!(state.fixture),
         tracks_config
       )

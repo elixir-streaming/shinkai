@@ -27,15 +27,15 @@ defmodule Shinkai.Sources.RTSPSourceTest do
     assert length(tracks) == 2
 
     assert [
-             %Shinkai.Track{id: 1, type: :video, codec: :h264, timescale: 15360, priv_data: nil},
+             %Shinkai.Track{id: 1, type: :video, codec: :h264, timescale: 15_360, priv_data: nil},
              %Shinkai.Track{
                id: 2,
                type: :audio,
                codec: :aac,
-               timescale: 48000,
+               timescale: 48_000,
                priv_data: %MediaCodecs.MPEG4.AudioSpecificConfig{
                  object_type: 2,
-                 sampling_frequency: 48000,
+                 sampling_frequency: 48_000,
                  channels: 0,
                  aot_specific_config:
                    <<0, 153, 8, 128, 4, 0, 24, 129, 169, 140, 46, 204, 102, 167, 5, 198, 166, 133,

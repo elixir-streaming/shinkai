@@ -6,7 +6,7 @@ defmodule Shinkai.Sources.Storage.File do
   @behaviour Shinkai.Sources.Storage
 
   @impl true
-  def all() do
+  def all do
     :sources
     |> :ets.tab2list()
     |> Enum.map(fn {_key, source} -> source end)

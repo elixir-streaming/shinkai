@@ -26,7 +26,7 @@ defmodule Shinkai.ConfigTest do
              } == Map.new(config[:hls])
 
       assert %{
-               enabled: true,
+               enabled: false,
                port: 8888
              } == Map.new(config[:server])
     end

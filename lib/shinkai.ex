@@ -72,7 +72,7 @@ defmodule Shinkai do
   alias Shinkai.Sources.Source
 
   @doc false
-  def load() do
+  def load do
     config_path = config_path()
     config = if File.exists?(config_path), do: YamlElixir.read_from_file!(config_path), else: %{}
     {paths, config} = Map.pop(config, "paths", %{})
@@ -81,7 +81,7 @@ defmodule Shinkai do
     Shinkai.Config.validate(config)
   end
 
-  defp config_path() do
+  defp config_path do
     System.get_env("SHINKAI_CONFIG_PATH", Application.get_env(:shinkai, :config_path))
   end
 

@@ -7,6 +7,7 @@ defmodule Shinkai.Sources.RTSP do
 
   import Shinkai.Utils
 
+  alias MediaCodecs.MPEG4
   alias Shinkai.Track
 
   @timeout 6_000
@@ -93,7 +94,7 @@ defmodule Shinkai.Sources.RTSP do
     with {:ok, tracks} <- RTSP.connect(state.rtsp_pid, @timeout),
          tracks <- build_tracks(tracks),
          :ok <- RTSP.play(state.rtsp_pid) do
-      codecs = tracks |> Map.values() |> Enum.map(& &1.codec) |> Enum.join(", ")
+      codecs = tracks |> Map.values() |> Enum.map_join(", ", & &1.codec)
       Logger.info("[#{state.id}] start reading from #{map_size(tracks)} tracks (#{codecs})")
 
       :ok =
@@ -134,7 +135,7 @@ defmodule Shinkai.Sources.RTSP do
   defp codec("mpeg4-generic"), do: :aac
   defp codec(other), do: String.to_atom(other)
 
-  defp priv_data(:aac, fmtp), do: MediaCodecs.MPEG4.AudioSpecificConfig.parse(fmtp.config)
+  defp priv_data(:aac, fmtp), do: MPEG4.AudioSpecificConfig.parse(fmtp.config)
   defp priv_data(_codec, _fmtp), do: nil
 
   defp to_packets(samples, track_id) when is_list(samples) do

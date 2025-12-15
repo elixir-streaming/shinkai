@@ -50,7 +50,7 @@ if Code.ensure_loaded?(Plug) do
       send_resp(conn, 404, "Not Found")
     end
 
-    defp hls_dir(), do: Shinkai.Config.get_config(:hls)[:storage_dir]
+    defp hls_dir, do: Shinkai.Config.get_config(:hls)[:storage_dir]
 
     defp file_response(conn, content_type, path) do
       if File.exists?(path) do
