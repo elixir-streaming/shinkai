@@ -31,9 +31,8 @@ defmodule Shinkai.MixProject do
 
   defp deps do
     [
-      {:media_codecs, "~> 0.10.0", override: true},
       {:phoenix_pubsub, "~> 2.2"},
-      {:rtsp, "~> 0.5.0"},
+      {:rtsp, "~> 0.6.0"},
       {:hlx, "~> 0.4.0"},
       {:yaml_elixir, "~> 2.12"},
       {:plug, "~> 1.19", optional: true},

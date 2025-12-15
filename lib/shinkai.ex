@@ -17,6 +17,12 @@ defmodule Shinkai do
   * `enabled` - Enable or disable the HTTP server.
   * `port` - Port number for the HTTP server.
 
+  ```elixir
+  config :shinkai, :server,
+    enabled: true,
+    port: 8888
+  ```
+
   ```yaml
   server:
     enabled: true          # Enable or disable the HTTP server (default: true)
@@ -32,6 +38,13 @@ defmodule Shinkai do
   * `part_duration` - Part duration in milliseconds.
   * `segment_type` - Type of segments to generate, either `fmp4`,
   `mpeg_ts`, or `low_latency`.
+
+  ```elixir
+  config :shinkai, :hls,
+    max_segments: 7,
+    part_duration: 500,
+    segment_type: :mpeg_ts
+  ```
 
   ```yaml
   hls:

@@ -40,11 +40,11 @@ defmodule Shinkai.Config do
       |> check_top_level_keys()
       |> parse_and_validate()
 
-    Enum.map(@default_config, fn {key, config} ->
-      # app_config = Application.get_env(:shinkai, key, []) |> parse_and_validate()
+    app_configs = Enum.map(@top_level_keys, &{&1, Application.get_env(:shinkai, &1, [])})
 
+    Enum.map(@default_config, fn {key, config} ->
       config
-      # |> Keyword.merge(app_config)
+      |> Keyword.merge(app_configs[key])
       |> Keyword.merge(user_config[key] || [])
       |> then(&{key, &1})
     end)
