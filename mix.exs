@@ -2,7 +2,7 @@ defmodule Shinkai.MixProject do
   use Mix.Project
 
   @version "0.1.0"
-  @github_url "https://github.com/gBillal/shinkai"
+  @github_url "https://github.com/elixir-streaming/shinkai"
 
   def project do
     [
