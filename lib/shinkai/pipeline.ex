@@ -14,10 +14,12 @@ defmodule Shinkai.Pipeline do
     hls_config = Config.get_config(:hls)
 
     children = [
-      {Sink.Hls, [id: id] ++ hls_config},
-      {Sources.RTSP, source}
+      {Sink.Hls, [id: id] ++ hls_config}
     ]
 
-    Supervisor.init(children, strategy: :one_for_all)
+    Supervisor.init(children ++ source(source), strategy: :one_for_all)
   end
+
+  defp source(%{type: :rtsp} = source), do: [{Sources.RTSP, source}]
+  defp source(_), do: []
 end

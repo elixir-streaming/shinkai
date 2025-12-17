@@ -3,7 +3,7 @@ defmodule Shinkai.Sources.Source do
   Struct describing a media source.
   """
 
-  @type source_type :: :rtsp
+  @type source_type :: :rtsp | :rtmp
 
   @type t :: %__MODULE__{
           id: String.t(),

@@ -75,9 +75,9 @@ defmodule Shinkai do
   def load do
     config_path = config_path()
     config = if File.exists?(config_path), do: YamlElixir.read_from_file!(config_path), else: %{}
-    {paths, config} = Map.pop(config, "paths", %{})
+    {paths, config} = Map.pop(config, "paths")
 
-    parse_sources(paths)
+    parse_sources(paths || %{})
     Shinkai.Config.validate(config)
   end
 

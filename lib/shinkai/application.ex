@@ -11,6 +11,7 @@ defmodule Shinkai.Application do
       {Shinkai.Config, config},
       {Phoenix.PubSub, name: Shinkai.PubSub},
       {DynamicSupervisor, name: Shinkai.SourcesSupervisor},
+      {ExRTMP.Server, handler: Shinkai.Sources.RTMP.Handler},
       {Task, fn -> Shinkai.Sources.start_all() end}
     ]
 
