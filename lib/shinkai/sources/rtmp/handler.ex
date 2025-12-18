@@ -3,8 +3,8 @@ defmodule Shinkai.Sources.RTMP.Handler do
 
   use ExRTMP.Server.Handler
 
-  alias Shinkai.Sources.Source
   alias Shinkai.Sources.RTMP.MediaProcessor
+  alias Shinkai.Sources.Source
 
   @impl true
   def init(_args) do

@@ -86,7 +86,7 @@ defmodule Shinkai.Sources.RTMP do
     end
   end
 
-  defp reconnect() do
+  defp reconnect do
     Process.send_after(self(), :reconnect, @reconnect_timeout)
   end
 end
