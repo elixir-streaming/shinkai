@@ -9,6 +9,10 @@ defmodule Shinkai.Pipeline do
     Supervisor.start_link(__MODULE__, source, name: :"#{source.id}")
   end
 
+  def stop(source_id) do
+    Supervisor.stop(:"#{source_id}")
+  end
+
   @impl true
   def init(%Sources.Source{id: id} = source) do
     hls_config = Config.get_config(:hls)
@@ -21,5 +25,6 @@ defmodule Shinkai.Pipeline do
   end
 
   defp source(%{type: :rtsp} = source), do: [{Sources.RTSP, source}]
+  defp source(%{type: :rtmp} = source), do: [{Sources.RTMP, source}]
   defp source(_), do: []
 end

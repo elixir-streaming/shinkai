@@ -64,11 +64,10 @@ defmodule Shinkai.Sink.Hls do
           Writer.add_variant!(state.writer, "video", tracks: [video_track])
       end
 
-    Phoenix.PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
+    :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
     {:noreply, %{state | writer: writer, tracks: Map.new(tracks, fn t -> {t.id, t} end)}}
   end
 
-  @impl true
   def handle_info({:packet, packets}, state) when is_list(packets) do
     {:noreply, Enum.reduce(packets, state, &do_handle_packet/2)}
   end

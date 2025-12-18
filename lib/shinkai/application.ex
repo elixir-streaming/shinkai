@@ -3,6 +3,8 @@ defmodule Shinkai.Application do
 
   use Application
 
+  alias Shinkai.Sources
+
   def start(_type, _args) do
     :ets.new(:sources, [:public, :named_table, :set, heir: :none])
     config = Shinkai.load()
@@ -11,8 +13,9 @@ defmodule Shinkai.Application do
       {Shinkai.Config, config},
       {Phoenix.PubSub, name: Shinkai.PubSub},
       {DynamicSupervisor, name: Shinkai.SourcesSupervisor},
-      {ExRTMP.Server, handler: Shinkai.Sources.RTMP.Handler},
-      {Task, fn -> Shinkai.Sources.start_all() end}
+      {Sources.PublishManager, []},
+      {ExRTMP.Server, handler: Sources.RTMP.Handler},
+      {Task, fn -> Sources.start_all() end}
     ]
 
     children =
