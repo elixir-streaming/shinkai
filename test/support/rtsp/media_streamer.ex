@@ -51,6 +51,11 @@ defmodule Shinkai.RTSP.MediaStreamer do
           :ok
       end
     end)
+
+    Map.values(tracks_config)
+    |> List.first()
+    |> Map.get(:tcp_socket)
+    |> :gen_tcp.close()
   end
 
   defp payloader(track, ssrc) do

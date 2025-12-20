@@ -3,9 +3,13 @@ defmodule Shinkai.Config do
 
   use GenServer
 
-  @top_level_keys [:server, :hls]
+  @top_level_keys [:rtmp, :server, :hls]
 
   @default_config [
+    rtmp: [
+      enabled: true,
+      port: 1935
+    ],
     server: [
       enabled: true,
       port: 8888
@@ -99,6 +103,11 @@ defmodule Shinkai.Config do
     parse_and_validate(rest, [{:server, server_config} | acc])
   end
 
+  defp parse_and_validate([{:rtmp, rtmp_config} | rest], acc) do
+    rtmp_config = parse_and_validate_rtmp(rtmp_config)
+    parse_and_validate(rest, [{:rtmp, rtmp_config} | acc])
+  end
+
   defp parse_and_validate_hls(config, acc \\ [])
 
   defp parse_and_validate_hls(nil, _acc), do: []
@@ -174,6 +183,31 @@ defmodule Shinkai.Config do
   defp parse_and_validate_server([{key, value} | _rest], _acc) do
     raise ArgumentError, """
     Invalid Server configuration key or value detected.
+    Key: #{inspect(key)}, Value: #{inspect(value)}.
+    """
+  end
+
+  defp parse_and_validate_rtmp(config, acc \\ [])
+  defp parse_and_validate_rtmp(nil, _acc), do: []
+  defp parse_and_validate_rtmp([], acc), do: acc
+
+  defp parse_and_validate_rtmp(config, acc) when is_map(config) do
+    parse_and_validate_rtmp(Map.to_list(config), acc)
+  end
+
+  defp parse_and_validate_rtmp([{key, value} | rest], acc)
+       when key in ["enabled", :enabled] and is_boolean(value) do
+    parse_and_validate_rtmp(rest, [{:enabled, value} | acc])
+  end
+
+  defp parse_and_validate_rtmp([{key, value} | rest], acc)
+       when key in [:port, "port"] and is_integer(value) and value > 0 and value < 65_536 do
+    parse_and_validate_rtmp(rest, [{:port, value} | acc])
+  end
+
+  defp parse_and_validate_rtmp([{key, value} | _rest], _acc) do
+    raise ArgumentError, """
+    Invalid RTMP configuration key or value detected.
     Key: #{inspect(key)}, Value: #{inspect(value)}.
     """
   end

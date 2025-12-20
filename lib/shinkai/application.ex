@@ -3,6 +3,8 @@ defmodule Shinkai.Application do
 
   use Application
 
+  alias Shinkai.Sources
+
   def start(_type, _args) do
     :ets.new(:sources, [:public, :named_table, :set, heir: :none])
     config = Shinkai.load()
@@ -11,8 +13,16 @@ defmodule Shinkai.Application do
       {Shinkai.Config, config},
       {Phoenix.PubSub, name: Shinkai.PubSub},
       {DynamicSupervisor, name: Shinkai.SourcesSupervisor},
-      {Task, fn -> Shinkai.Sources.start_all() end}
+      {Sources.PublishManager, []},
+      {Task, fn -> Sources.start_all() end}
     ]
+
+    children =
+      if config[:rtmp][:enabled] do
+        children ++ [{ExRTMP.Server, handler: Sources.RTMP.Handler, port: config[:rtmp][:port]}]
+      else
+        children
+      end
 
     children =
       if Code.ensure_loaded?(Bandit) and config[:server][:enabled] do

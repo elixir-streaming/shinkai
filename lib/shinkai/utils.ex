@@ -9,4 +9,7 @@ defmodule Shinkai.Utils do
 
   @spec state_topic(String.t()) :: String.t()
   def state_topic(id), do: "source:state:#{id}"
+
+  @spec sink_topic(String.t()) :: String.t()
+  def sink_topic(id), do: "source:sink:#{id}"
 end

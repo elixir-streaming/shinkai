@@ -3,10 +3,12 @@ defmodule Shinkai.Track do
   Module describing a media track.
   """
 
+  @type codec :: :h264 | :h265 | :aac | atom()
+
   @type t :: %__MODULE__{
           id: integer(),
           type: :audio | :video,
-          codec: :h264 | :h265 | :aac | :unknown,
+          codec: codec(),
           timescale: non_neg_integer(),
           priv_data: term()
         }
