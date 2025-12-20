@@ -14,12 +14,12 @@ defmodule Shinkai.Sources do
     end)
   end
 
-  @spec start(Source.t(), pid() | nil) :: {:ok, pid()} | {:error, atom()}
-  def start(source, pid \\ nil) do
+  @spec start(Source.t()) :: {:ok, pid()} | {:error, atom()}
+  def start(source) do
     case :ets.lookup(:sources, source.id) do
       [] ->
-        if pid do
-          :ok = PublishManager.monitor(source, pid)
+        if source.type == :publish do
+          :ok = PublishManager.monitor(source, self())
           :ets.insert(:sources, {source.id, source})
         end
 
@@ -33,12 +33,12 @@ defmodule Shinkai.Sources do
     end
   end
 
-  @spec stop(String.t(), boolean()) :: :ok
-  def stop(source_id, delete_source \\ false) do
-    Shinkai.Pipeline.stop(source_id)
+  @spec stop(Source.t()) :: :ok
+  def stop(source) do
+    Shinkai.Pipeline.stop(source.id)
 
-    if delete_source do
-      :ets.delete(:sources, source_id)
+    if source.type == :publish do
+      :ets.delete(:sources, source.id)
     end
 
     :ok

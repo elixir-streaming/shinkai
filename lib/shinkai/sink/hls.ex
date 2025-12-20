@@ -8,6 +8,7 @@ defmodule Shinkai.Sink.Hls do
   import Shinkai.Utils
 
   alias HLX.Writer
+  alias Phoenix.PubSub
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name])
@@ -64,7 +65,7 @@ defmodule Shinkai.Sink.Hls do
           Writer.add_variant!(state.writer, "video", tracks: [video_track])
       end
 
-    :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
+    :ok = PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
     {:noreply, %{state | writer: writer, tracks: Map.new(tracks, fn t -> {t.id, t} end)}}
   end
 
@@ -80,7 +81,9 @@ defmodule Shinkai.Sink.Hls do
   @impl true
   def handle_info(:disconnected, state) do
     :ok = Writer.close(state.writer)
-    :ok = Phoenix.PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
+    :ok = PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
+    :ok = PubSub.local_broadcast(Shinkai.PubSub, sink_topic(state.source_id), {:hls, :done})
+
     {:noreply, %{state | writer: Writer.new!(state.config), last_sample: %{}}}
   end
 

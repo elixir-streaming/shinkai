@@ -25,7 +25,7 @@ defmodule Shinkai.Sources.RTMP.Handler do
   def handle_publish(stream_key, state) do
     source = %Source{id: "#{state.app}-#{stream_key}", type: :publish}
 
-    case Shinkai.Sources.start(source, self()) do
+    case Shinkai.Sources.start(source) do
       {:ok, _pid} ->
         {:ok, %{state | media_processor: MediaProcessor.new(source.id)}}
 

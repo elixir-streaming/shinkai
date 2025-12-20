@@ -49,7 +49,7 @@ defmodule Shinkai.MixProject do
   defp package do
     [
       maintainers: ["Billal Ghilas"],
-      licenses: ["Apache-2.0"],
+      licenses: ["MIT"],
       links: %{
         "GitHub" => @github_url
       }

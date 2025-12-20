@@ -39,7 +39,7 @@ defmodule Shinkai.Sources.PublishManager do
         {:noreply, state}
 
       {source, new_state} ->
-        Shinkai.Sources.stop(source.id, true)
+        Shinkai.Sources.stop(source)
         {:noreply, new_state}
     end
   end
