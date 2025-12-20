@@ -15,7 +15,7 @@ defmodule Shinkai.ConfigTest do
 
       config = Config.validate(user_config)
 
-      assert Keyword.keys(config) == [:server, :hls]
+      assert Keyword.keys(config) == [:rtmp, :server, :hls]
 
       assert %{
                segment_type: :low_latency,
