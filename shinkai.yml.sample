@@ -1,3 +1,7 @@
+rtmp:
+    enabled: true
+    port: 1935
+
 server:
     enabled: true
     port: 8888

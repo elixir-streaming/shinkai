@@ -2,7 +2,7 @@ defmodule Shinkai do
   @moduledoc """
     Media server for Elixir.
 
-    ## Configuration
+  ## Configuration
 
     Shinkai can be configured via a YAML file. By default, it looks for the configuration file at
     `shinkai.yml` relative to the current working directory. You can override this by setting the
@@ -11,7 +11,8 @@ defmodule Shinkai do
 
     The following configuration options are available:
 
-    ### Server
+  ### Server
+
     To configure the http server responsible for serving HLS streams.
 
     * `enabled` - Enable or disable the HTTP server.
@@ -29,7 +30,8 @@ defmodule Shinkai do
       port: 8888             # Port number for the HTTP server (default: 8888)
     ```
 
-    ### HLS
+  ### HLS
+
     To configure HLS streaming options.
 
     * `storage_dir` - Directory to store HLS segments.
@@ -55,7 +57,26 @@ defmodule Shinkai do
       segment_type: "fmp4"                 # Type of segments to generate, either "fmp4" or "mpeg_ts" or "low_latency" (default: "fmp4")
     ```
 
-    ### Paths
+  ### RTMP
+
+    To configure the RTMP server.
+    * `enabled` - Enable or disable the RTMP server.
+    * `port` - Port number for the RTMP server.
+
+    ```elixir
+    config :shinkai, :rtmp,
+      enabled: true,
+      port: 1935
+    ```
+
+    ```yaml
+    rtmp:
+      enabled: true          # Enable or disable the RTMP server (default: true)
+      port: 1935             # Port number for the RTMP server (default: 1935)
+    ```
+
+  ### Paths
+
     To configure media source paths. Each source should have a unique alphanumeric ID.
 
     ```yaml

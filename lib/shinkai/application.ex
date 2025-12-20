@@ -14,9 +14,15 @@ defmodule Shinkai.Application do
       {Phoenix.PubSub, name: Shinkai.PubSub},
       {DynamicSupervisor, name: Shinkai.SourcesSupervisor},
       {Sources.PublishManager, []},
-      {ExRTMP.Server, handler: Sources.RTMP.Handler},
       {Task, fn -> Sources.start_all() end}
     ]
+
+    children =
+      if config[:rtmp][:enabled] do
+        children ++ [{ExRTMP.Server, handler: Sources.RTMP.Handler, port: config[:rtmp][:port]}]
+      else
+        children
+      end
 
     children =
       if Code.ensure_loaded?(Bandit) and config[:server][:enabled] do
