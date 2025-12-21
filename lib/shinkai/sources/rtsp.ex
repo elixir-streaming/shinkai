@@ -29,9 +29,7 @@ defmodule Shinkai.Sources.RTSP do
       id: source.id,
       rtsp_pid: pid,
       tracks: %{},
-      packets_topic: packets_topic(source.id),
-      buffer?: false,
-      packets: []
+      packets_topic: packets_topic(source.id)
     }
 
     {:ok, state, {:continue, :connect}}
@@ -42,28 +40,6 @@ defmodule Shinkai.Sources.RTSP do
 
   @impl true
   def handle_info(:reconnect, state), do: do_connect(state)
-
-  @impl true
-  def handle_info({:rtsp, _pid, {id, sample_or_samples}} = msg, %{buffer?: true} = state) do
-    # buffer until we get a video packet
-    # and then drop all packets with dts < dts of that video packet
-    track = state.tracks[id]
-    packets = to_packets(sample_or_samples, track.id)
-
-    if track.type == :video do
-      max_dts = List.first(List.wrap(packets)).dts
-
-      state.packets
-      |> Enum.reverse()
-      |> List.flatten()
-      |> Enum.filter(&(&1.dts < max_dts))
-      |> then(&Phoenix.PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, &1}))
-
-      handle_info(msg, %{state | buffer?: false, packets: []})
-    else
-      {:noreply, %{state | packets: [packets | state.packets]}}
-    end
-  end
 
   def handle_info({:rtsp, _pid, {id, sample_or_samples}}, state) do
     :ok =
@@ -104,9 +80,7 @@ defmodule Shinkai.Sources.RTSP do
           {:tracks, Map.values(tracks)}
         )
 
-      buffer? = map_size(tracks) > 1 and Enum.any?(Map.values(tracks), &(&1.type == :video))
-
-      {:noreply, %{state | tracks: tracks, buffer?: buffer?}}
+      {:noreply, %{state | tracks: tracks}}
     else
       {:error, reason} ->
         Logger.error("[#{state.id}] rtsp connection failed: #{inspect(reason)}")

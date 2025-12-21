@@ -5,10 +5,14 @@ defmodule Shinkai.Sink.Hls do
 
   use GenServer
 
+  require Logger
+
   import Shinkai.Utils
 
   alias HLX.Writer
   alias Phoenix.PubSub
+
+  @supported_codecs [:h264, :h265, :av1, :aac]
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name])
@@ -31,22 +35,24 @@ defmodule Shinkai.Sink.Hls do
        config: hls_config,
        source_id: id,
        tracks: %{},
-       last_sample: %{}
+       last_sample: %{},
+       buffer?: false,
+       packets: []
      }}
   end
 
   @impl true
   def handle_info({:tracks, tracks}, state) do
-    hls_tracks =
-      Enum.map(tracks, fn track ->
-        HLX.Track.new(
-          id: track.id,
-          type: track.type,
-          codec: track.codec,
-          priv_data: track.priv_data,
-          timescale: track.timescale
-        )
-      end)
+    hls_tracks = Enum.map(tracks, &Shinkai.Track.to_hls_track/1)
+
+    {hls_tracks, unsupported_tracks} =
+      Enum.split_with(hls_tracks, fn t -> t.codec in @supported_codecs end)
+
+    if unsupported_tracks != [] do
+      Logger.warning(
+        "[#{state.source_id}] mux hls: ignore unsupported codecs: #{Enum.map_join(unsupported_tracks, ", ", & &1.codec)}"
+      )
+    end
 
     audio_track = Enum.find(hls_tracks, fn t -> t.type == :audio end)
     video_track = Enum.find(hls_tracks, fn t -> t.type == :video end)
@@ -65,8 +71,16 @@ defmodule Shinkai.Sink.Hls do
           Writer.add_variant!(state.writer, "video", tracks: [video_track])
       end
 
+    buffer? = length(hls_tracks) > 1 and Enum.any?(hls_tracks, &(&1.type == :video))
     :ok = PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
-    {:noreply, %{state | writer: writer, tracks: Map.new(tracks, fn t -> {t.id, t} end)}}
+
+    {:noreply,
+     %{
+       state
+       | writer: writer,
+         tracks: Map.new(hls_tracks, fn t -> {t.id, t} end),
+         buffer?: buffer?
+     }}
   end
 
   def handle_info({:packet, packets}, state) when is_list(packets) do
@@ -84,7 +98,32 @@ defmodule Shinkai.Sink.Hls do
     :ok = PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
     :ok = PubSub.local_broadcast(Shinkai.PubSub, sink_topic(state.source_id), {:hls, :done})
 
-    {:noreply, %{state | writer: Writer.new!(state.config), last_sample: %{}}}
+    {:noreply,
+     %{state | writer: Writer.new!(state.config), last_sample: %{}, packets: [], buffer?: false}}
+  end
+
+  defp do_handle_packet(%{track_id: id}, state) when not is_map_key(state.tracks, id) do
+    state
+  end
+
+  defp do_handle_packet(packet, %{buffer?: true} = state) do
+    # buffer until we get a video packet
+    # and then drop all packets with dts < dts of that video packet
+    track = state.tracks[packet.track_id]
+
+    if track.type == :video do
+      packets = [packet | state.packets]
+      max_dts = ExMP4.Helper.timescalify(packet.dts, track.timescale, :millisecond)
+      state = %{state | packets: [], buffer?: false}
+
+      packets
+      |> Enum.reverse()
+      |> List.flatten()
+      |> Enum.reject(&reject?(&1, state, max_dts))
+      |> Enum.reduce(state, &do_handle_packet/2)
+    else
+      %{state | packets: [packet | state.packets]}
+    end
   end
 
   defp do_handle_packet(packet, state) do
@@ -104,6 +143,12 @@ defmodule Shinkai.Sink.Hls do
             last_sample: Map.put(state.last_sample, packet.track_id, sample)
         }
     end
+  end
+
+  defp reject?(packet, state, max_dts) do
+    track = state.tracks[packet.track_id]
+    packet_dts = ExMP4.Helper.timescalify(packet.dts, track.timescale, :millisecond)
+    packet_dts < max_dts
   end
 
   defp packet_to_sample(packet) do
