@@ -9,6 +9,7 @@ defmodule Shinkai.Sink.Hls do
 
   import Shinkai.Utils
 
+  alias __MODULE__.RequestHolder
   alias HLX.Writer
   alias Phoenix.PubSub
 
@@ -24,10 +25,26 @@ defmodule Shinkai.Sink.Hls do
     {dir, hls_config} = Keyword.pop(hls_config, :storage_dir)
     hls_config = [type: :master, storage_dir: Path.join(dir, id)] ++ hls_config
 
+    hls_config =
+      if hls_config[:segment_type] == :low_latency do
+        on_part_created = fn variant_id, part ->
+          send(
+            :"request_holder_#{id}",
+            {:hls_part, variant_id, part.segment_index, part.index}
+          )
+        end
+
+        hls_config ++ [on_part_created: on_part_created, server_control: [can_block_reload: true]]
+      else
+        hls_config
+      end
+
     File.rm_rf!(hls_config[:storage_dir])
 
     :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, tracks_topic(id))
     :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, state_topic(id))
+
+    {:ok, _} = RequestHolder.start_link(:"request_holder_#{id}")
 
     {:ok,
      %{
