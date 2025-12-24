@@ -34,7 +34,7 @@ defmodule Shinkai.Sink.Hls do
           )
         end
 
-        hls_config ++ [on_part_created: on_part_created]
+        hls_config ++ [on_part_created: on_part_created, server_control: [can_block_reload: true]]
       else
         hls_config
       end
