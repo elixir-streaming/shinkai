@@ -2,6 +2,8 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
   @moduledoc false
 
   alias ExFLV.Tag
+  alias ExFLV.Tag.AudioData.AAC
+  alias ExFLV.Tag.VideoData.AVC
   alias ExMP4.Reader
   alias ExRTMP.Server.ClientSession
 
@@ -38,7 +40,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     avcc = ExMP4.Box.serialize(track.priv_data)
 
     binary_part(avcc, 8, byte_size(avcc) - 8)
-    |> Tag.VideoData.AVC.new(:sequence_header, 0)
+    |> AVC.new(:sequence_header, 0)
     |> Tag.VideoData.new(:avc, :keyframe)
     |> Tag.Serializer.serialize()
   end
@@ -47,7 +49,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     [descriptor] = MediaCodecs.MPEG4.parse_descriptors(track.priv_data.es_descriptor)
 
     descriptor.dec_config_descr.decoder_specific_info
-    |> Tag.AudioData.AAC.new(:sequence_header)
+    |> AAC.new(:sequence_header)
     |> Tag.AudioData.new(:aac, 3, 1, :stereo)
     |> Tag.Serializer.serialize()
   end
@@ -58,7 +60,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
 
     sample =
       sample.payload
-      |> Tag.VideoData.AVC.new(:nalu, pts - dts)
+      |> AVC.new(:nalu, pts - dts)
       |> Tag.VideoData.new(:avc, if(sample.sync?, do: :keyframe, else: :interframe))
       |> Tag.Serializer.serialize()
 
@@ -70,7 +72,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
 
     sample =
       sample.payload
-      |> Tag.AudioData.AAC.new(:raw)
+      |> AAC.new(:raw)
       |> Tag.AudioData.new(:aac, 3, 1, :stereo)
       |> Tag.Serializer.serialize()
 
