@@ -1,4 +1,4 @@
-defmodule Shinkai.Sources.RTSPSourceTest do
+defmodule Shinkai.Sources.RTSPTest do
   use ExUnit.Case, async: true
 
   alias Membrane.RTSP.Server
