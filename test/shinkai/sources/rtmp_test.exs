@@ -7,7 +7,7 @@ defmodule Shinkai.Sources.RTMPTest do
 
   setup do
     {:ok, server} =
-      Server.start_link(
+      Server.start(
         port: 0,
         handler: Shinkai.RTMP.Server.Handler,
         handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]

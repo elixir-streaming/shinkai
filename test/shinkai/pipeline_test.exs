@@ -35,7 +35,7 @@ defmodule Shinkai.PipelineTest do
 
   test "Stream from rtmp" do
     {:ok, rtmp_server} =
-      ExRTMP.Server.start_link(
+      ExRTMP.Server.start(
         port: 0,
         handler: Shinkai.RTMP.Server.Handler,
         handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
