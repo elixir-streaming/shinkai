@@ -49,12 +49,8 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   end
 
   def handle_video_data(sample, %{buffer?: false} = state) do
-    PubSub.broadcast(
-      Shinkai.PubSub,
-      packets_topic(state.source_id),
-      {:packet, packet_from_sample(state.video_track.id, sample)}
-    )
-
+    packet = packet_from_sample(state.video_track.id, sample)
+    PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, packet})
     state
   end
 
@@ -83,7 +79,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   def handle_audio_data(sample, %{buffer?: false} = state) do
     PubSub.broadcast(
       Shinkai.PubSub,
-      packets_topic(state.source_id),
+      state.packets_topic,
       {:packet, packet_from_sample(state.audio_track.id, sample)}
     )
 
