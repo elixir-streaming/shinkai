@@ -85,6 +85,8 @@ defmodule Shinkai do
         source: "rtsp://example.com/stream1"
       camera2:
         source: "rtsp://example.com/stream2"
+      camera3:
+        source: "rtmp://example.com/live/stream3"
     ```
   """
 
