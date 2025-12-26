@@ -1,5 +1,7 @@
 defmodule Shinkai.Sources do
-  @moduledoc false
+  @moduledoc """
+  Module responsible for managing media sources.
+  """
 
   alias Shinkai.Sources.{PublishManager, Source}
 
@@ -14,6 +16,9 @@ defmodule Shinkai.Sources do
     end)
   end
 
+  @doc """
+  Starts a media source pipeline.
+  """
   @spec start(Source.t()) :: {:ok, pid()} | {:error, atom()}
   def start(source) do
     case :ets.lookup(:sources, source.id) do
@@ -33,6 +38,9 @@ defmodule Shinkai.Sources do
     end
   end
 
+  @doc """
+  Stops a media source pipeline.
+  """
   @spec stop(Source.t()) :: :ok
   def stop(source) do
     Shinkai.Pipeline.stop(source.id)
