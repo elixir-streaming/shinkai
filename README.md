@@ -6,7 +6,8 @@ Live streams can be published to the server using:
 
 | Protocol | Variants | Video Codecs | Audio Codecs |
 |----------|----------|--------------|--------------|
-| RTSP client/cameras | TCP/UDP | H264, H265, AV1 | MPEG-4(AAC), G711(PCMA/PCMU) |
+| RTSP client/cameras | TCP/UDP | H264, H265, AV1 | MPEG-4(AAC), G711(PCMA/PCMU) |\
+| RTMP client/publish | - | H264 | MPEG-4(AAC) |
 
 Live streams can be read from the server with:
 
@@ -37,6 +38,16 @@ or get the manifest file link and feed it to your player:
 ffplay http://localhost:8888/hls/<stream_name>/master.m3u8
 ```
 
+### RTMP
+[RTMP](https://en.wikipedia.org/wiki/Real-Time_Messaging_Protocol) (Real-Time Messaging Protocol) is a protocol for streaming audio, video, and data over the internet. It is widely used for live streaming applications.
+
+To publish a stream to the server using RTMP, you can use `ffmpeg`:
+```
+ffmpeg -re -i input.mp4 -c copy -f flv rtmp://localhost:1935/live/test
+```
+
+The stream will be available under the name `live-test` for playback.
+
 ## Installation
 
 The package can be installed by adding `shinkai` to your list of dependencies in `mix.exs`:
@@ -44,7 +55,7 @@ The package can be installed by adding `shinkai` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:shinkai, "~> 0.1.0"}
+    {:shinkai, "~> 0.2.0"}
   ]
 end
 ```

@@ -3,6 +3,8 @@ defmodule Shinkai.Sources.RTMP.Handler do
 
   use ExRTMP.Server.Handler
 
+  require Logger
+
   alias Shinkai.Sources.RTMP.MediaProcessor
   alias Shinkai.Sources.Source
 
@@ -23,14 +25,11 @@ defmodule Shinkai.Sources.RTMP.Handler do
 
   @impl true
   def handle_publish(stream_key, state) do
-    source = %Source{id: "#{state.app}-#{stream_key}", type: :publish}
-
-    case Shinkai.Sources.start(source) do
-      {:ok, _pid} ->
-        {:ok, %{state | media_processor: MediaProcessor.new(source.id)}}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, source_id} <- source_id(state.app, stream_key),
+         source <- %Source{id: source_id, type: :publish},
+         {:ok, _} <- Shinkai.Sources.start(source) do
+      Logger.info("[RTMP] is publishing to #{source_id}")
+      {:ok, %{state | media_processor: MediaProcessor.new(source.id)}}
     end
   end
 
@@ -43,4 +42,7 @@ defmodule Shinkai.Sources.RTMP.Handler do
   def handle_audio_data(_timestamp, sample, state) do
     %{state | media_processor: MediaProcessor.handle_audio_data(sample, state.media_processor)}
   end
+
+  defp source_id("", ""), do: {:error, :invalid_stream_key}
+  defp source_id(app, stream_key), do: {:ok, String.trim("#{app}-#{stream_key}", "-")}
 end
