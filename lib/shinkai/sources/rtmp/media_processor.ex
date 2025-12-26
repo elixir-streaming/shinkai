@@ -3,6 +3,8 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
 
   import Shinkai.Utils
 
+  require Logger
+
   alias Phoenix.PubSub
   alias Shinkai.{Packet, Track}
 
@@ -99,6 +101,12 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   end
 
   defp unbuffer(state) do
+    tracks = [state.video_track, state.audio_track]
+
+    Logger.info(
+      "[#{state.source_id}] reading #{length(tracks)} track(s) (#{Enum.map_join(tracks, ", ", & &1.codec)})"
+    )
+
     [state.video_track, state.audio_track]
     |> Enum.reject(&is_nil/1)
     |> then(&PubSub.broadcast(Shinkai.PubSub, tracks_topic(state.source_id), {:tracks, &1}))
