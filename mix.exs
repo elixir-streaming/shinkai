@@ -35,6 +35,7 @@ defmodule Shinkai.MixProject do
       {:rtsp, "~> 0.8.0"},
       {:hlx, "~> 0.5.0"},
       {:ex_rtmp, "~> 0.4.1"},
+      {:ex_webrtc, "~> 0.15.0"},
       {:yaml_elixir, "~> 2.12"},
       {:plug, "~> 1.19", optional: true},
       {:bandit, "~> 1.8", optional: true},
