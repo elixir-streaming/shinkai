@@ -14,6 +14,7 @@ defmodule Shinkai.Application do
       {Phoenix.PubSub, name: Shinkai.PubSub},
       {DynamicSupervisor, name: Shinkai.SourcesSupervisor},
       {Sources.PublishManager, []},
+      {Registry, keys: :duplicate, name: Shinkai.Registry},
       {Task, fn -> Sources.start_all() end}
     ]
 

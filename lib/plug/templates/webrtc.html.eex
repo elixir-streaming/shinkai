@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Shinkai WebRTC</title>
+    </head>
+    <body>
+        <video id="video" autoplay muted playsinline></video>
+        <script>
+            (async () => {
+                const pc = new RTCPeerConnection();
+                let response = await fetch("/webrtc/<%= @source_id %>/whep", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/sdp" },
+                    body: "",
+                });
+
+                pc.addEventListener("track", (track) => {
+                    const video = document.getElementById("video");
+                    video.srcObject = track.streams[0];
+                });
+
+                if (response.status == 416) {
+                    const session_url = response.headers.get("Location");
+                    const offer = await response.text();
+                    await pc.setRemoteDescription(
+                        new RTCSessionDescription({
+                            type: "offer",
+                            sdp: offer,
+                        }),
+                    );
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await fetch(session_url, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/sdp" },
+                        body: pc.localDescription.sdp,
+                    });
+                }
+            })();
+        </script>
+    </body>
+</html>

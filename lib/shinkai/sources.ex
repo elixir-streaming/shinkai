@@ -52,6 +52,9 @@ defmodule Shinkai.Sources do
     :ok
   end
 
+  defdelegate add_webrtc_peer(source_id), to: Shinkai.Pipeline
+  defdelegate handle_webrtc_peer_answer(source_id, session_id, sdp_answer), to: Shinkai.Pipeline
+
   defp storage_impl do
     Application.get_env(:shinkai, :storage_impl, Shinkai.Sources.Storage.File)
   end
