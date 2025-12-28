@@ -7,23 +7,21 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
 
   alias ExWebRTC.PeerConnection
 
-  @h264_codec %ExWebRTC.RTPCodecParameters{
-    payload_type: 96,
-    mime_type: "video/H264",
-    clock_rate: 90_000,
-    sdp_fmtp_line: %ExSDP.Attribute.FMTP{
-      pt: 96,
-      level_asymmetry_allowed: true,
-      packetization_mode: 1,
-      profile_level_id: 0x42E01F
-    }
-  }
-
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name])
   end
 
-  @spec add_peer(server :: pid() | atom(), from :: GenServer.from()) :: :ok
+  @spec add_video_track(server :: GenServer.name() | pid(), tuple()) :: :ok
+  def add_video_track(manager, track) do
+    GenServer.call(manager, {:add_video_track, track})
+  end
+
+  @spec add_audio_track(server :: GenServer.name() | pid(), tuple()) :: :ok
+  def add_audio_track(manager, track) do
+    GenServer.call(manager, {:add_audio_track, track})
+  end
+
+  @spec add_peer(server :: GenServer.name() | pid(), from :: GenServer.from()) :: :ok
   def add_peer(manager, from) do
     GenServer.cast(manager, {:add_peer, from})
   end
@@ -40,16 +38,36 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
 
   @impl true
   def init(opts) do
-    {:ok, %{source_id: opts[:source_id], sessions: %{}, peers: %{}}}
+    {:ok,
+     %{
+       source_id: opts[:source_id],
+       sessions: %{},
+       peers: %{},
+       video_track: nil,
+       audio_track: nil
+     }}
+  end
+
+  @impl true
+  def handle_call({:add_video_track, track}, _from, state) do
+    {:reply, :ok, %{state | video_track: track}}
+  end
+
+  def handle_call({:add_audio_track, track}, _from, state) do
+    {:reply, :ok, %{state | audio_track: track}}
   end
 
   @impl true
   def handle_cast({:add_peer, from}, state) do
-    stream_id = ExWebRTC.MediaStreamTrack.generate_stream_id()
-    video_track = ExWebRTC.MediaStreamTrack.new(:video, [stream_id])
+    video_tracks = if state.video_track, do: [elem(state.video_track, 1)], else: []
+    audio_tracks = if state.audio_track, do: [elem(state.audio_track, 1)], else: []
 
-    with {:ok, pc} <- PeerConnection.start(video_codecs: [@h264_codec]),
-         {:ok, _} <- PeerConnection.add_track(pc, video_track),
+    tracks =
+      Enum.reject([state.video_track, state.audio_track], &is_nil/1) |> Enum.map(&elem(&1, 0))
+
+    with {:ok, pc} <-
+           PeerConnection.start(video_codecs: video_tracks, audio_codecs: audio_tracks),
+         :ok <- add_tracks(pc, tracks),
          {:ok, offer} <- PeerConnection.create_offer(pc),
          :ok <- PeerConnection.set_local_description(pc, offer) do
       {:noreply, %{state | peers: Map.put(state.peers, pc, from)}}
@@ -100,14 +118,21 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
     {:noreply, state}
   end
 
-  def handle_info({:ex_webrtc, pid, {:ice_connection_state_change, :connected}}, state) do
+  def handle_info({:ex_webrtc, pid, {:connection_state_change, :connected}}, state) do
     {session_id, pc} = Enum.find(state.sessions, fn {_session_id, p} -> p == pid end)
     Registry.register(Shinkai.Registry, {:webrtc, state.source_id}, {pc, session_id})
     {:noreply, %{state | sessions: Map.delete(state.sessions, session_id)}}
   end
 
-  def handle_info({:ex_webrtc, _pid, {:ice_connection_state_change, :failed}}, state) do
-    # Handle failed connection
+  def handle_info({:ex_webrtc, pid, {:connection_state_change, connection_state}}, state)
+      when connection_state in [:failed, :closed, :disconnected] do
+    Logger.info("WebRTC PeerConnection #{inspect(pid)} connection state: #{connection_state}")
+    PeerConnection.stop(pid)
+    Registry.unregister_match(Shinkai.Registry, {:webrtc, state.source_id}, {pid, :_})
+    {:noreply, state}
+  end
+
+  def handle_info({:ex_webrtc, _pid, {:rtcp, _}}, state) do
     {:noreply, state}
   end
 
@@ -118,5 +143,14 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
 
   def handle_info(_msg, state) do
     {:noreply, state}
+  end
+
+  defp add_tracks(pc, tracks) do
+    Enum.reduce_while(tracks, :ok, fn track, :ok ->
+      case PeerConnection.add_track(pc, track) do
+        {:ok, _} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 end
