@@ -26,6 +26,10 @@ defmodule Shinkai.Pipeline do
     Sink.WebRTC.handle_peer_answer(:"webrtc_sink_#{source_id}", session_id, sdp_answer)
   end
 
+  def remove_webrtc_peer(source_id, session_id) do
+    Sink.WebRTC.remove_peer(:"webrtc_sink_#{source_id}", session_id)
+  end
+
   def stop(source_id) do
     Supervisor.stop(:"#{source_id}")
   end

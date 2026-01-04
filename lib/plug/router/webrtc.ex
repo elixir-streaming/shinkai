@@ -53,5 +53,10 @@ if Code.ensure_loaded?(Plug) do
           send_resp(conn, 415, "Unsupported Media Type")
       end
     end
+
+    delete "/:source_id/whep/:session_id" do
+      Shinkai.Sources.remove_webrtc_peer(source_id, session_id)
+      send_resp(conn, 204, "")
+    end
   end
 end
