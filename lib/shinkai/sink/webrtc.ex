@@ -33,6 +33,11 @@ defmodule Shinkai.Sink.WebRTC do
     GenServer.call(server, {:handle_peer_answer, session_id, sdp})
   end
 
+  @spec remove_peer(server :: pid() | atom(), session_id :: String.t()) :: :ok
+  def remove_peer(server, session_id) do
+    GenServer.cast(server, {:remove_peer, session_id})
+  end
+
   @impl true
   def init(opts) do
     source_id = opts[:id]
@@ -40,15 +45,12 @@ defmodule Shinkai.Sink.WebRTC do
 
     PubSub.subscribe(Shinkai.PubSub, tracks_topic(source_id))
 
-    {:ok, sock} = :gen_udp.open(0, [:binary, active: true])
-
     {:ok,
      %{
        peer_manager: peer_manager,
        source_id: source_id,
        packets_topic: packets_topic(source_id),
-       tracks: %{},
-       sock: sock
+       tracks: %{}
      }}
   end
 
@@ -64,6 +66,12 @@ defmodule Shinkai.Sink.WebRTC do
 
   def handle_call({:handle_peer_answer, session_id, sdp}, from, state) do
     :ok = PeerManager.handle_peer_answer(state.peer_manager, from, session_id, sdp)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_cast({:remove_peer, session_id}, state) do
+    :ok = PeerManager.remove_peer(state.peer_manager, session_id)
     {:noreply, state}
   end
 
@@ -87,7 +95,7 @@ defmodule Shinkai.Sink.WebRTC do
       |> Enum.reject(&is_nil/1)
       |> Enum.reduce(state, fn track, state ->
         media_stream = ExWebRTC.MediaStreamTrack.new(track.type, [stream_id])
-        webrtc_track = webrtc_track(track, stream_id)
+        webrtc_track = webrtc_track(track)
 
         payloader_mod = payloader_mod(track.codec)
 
@@ -168,13 +176,15 @@ defmodule Shinkai.Sink.WebRTC do
     %{track_ctx | payloader_state: payloader_state}
   end
 
-  defp webrtc_track(track, stream_id) do
+  defp webrtc_track(track) do
+    pt = payload_type(track.codec)
+
     %RTPCodecParameters{
-      payload_type: payload_type(track.codec),
+      payload_type: pt,
       mime_type: mime_type(track.codec),
       clock_rate: clock_rate(track),
       channels: if(track.type == :audio, do: 1, else: nil),
-      sdp_fmtp_line: sdp_fmtp_line(track.codec, payload_type)
+      sdp_fmtp_line: sdp_fmtp_line(track.codec, pt)
     }
   end
 
