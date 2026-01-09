@@ -25,6 +25,7 @@ defmodule Shinkai.Sources.RTSP do
     {:ok, pid} = RTSP.start_link(stream_uri: source.uri)
 
     if function_exported?(Process, :set_label, 1) do
+      # credo:disable-for-next-line
       apply(Process, :set_label, [{:rtsp, source.id}])
     end
 
