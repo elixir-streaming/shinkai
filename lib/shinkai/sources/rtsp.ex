@@ -23,7 +23,10 @@ defmodule Shinkai.Sources.RTSP do
     Logger.info("[#{source.id}] Starting new rtsp source")
 
     {:ok, pid} = RTSP.start_link(stream_uri: source.uri)
-    Process.set_label({:rtsp, source.id})
+
+    if function_exported?(Process, :set_label, 1) do
+      Process.set_label({:rtsp, source.id})
+    end
 
     state = %{
       id: source.id,
