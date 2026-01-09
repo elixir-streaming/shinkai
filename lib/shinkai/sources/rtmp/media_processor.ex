@@ -9,6 +9,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   alias Shinkai.{Packet, Track}
 
   @max_buffer 100
+  @timescale 1000
 
   @type state :: %{
           source_id: String.t(),
@@ -36,14 +37,30 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
 
   @spec handle_video_data(tuple(), state()) :: state()
   def handle_video_data({:codec, codec, init_data}, state) do
-    track = Track.new(id: 1, type: :video, codec: codec, timescale: 1000)
+    track = Track.new(id: 1, type: :video, codec: codec, timescale: @timescale)
 
     track =
-      if codec == :avc do
-        avcc = ExMP4.Box.parse(%ExMP4.Box.Avcc{}, init_data)
-        %{track | codec: :h264, priv_data: {List.first(avcc.sps), avcc.pps}}
-      else
-        track
+      case codec do
+        :h264 ->
+          avcc = ExMP4.Box.parse(%ExMP4.Box.Avcc{}, init_data)
+          %{track | codec: :h264, priv_data: {List.first(avcc.sps), avcc.pps}}
+
+        :h265 ->
+          hvcc = ExMP4.Box.parse(%ExMP4.Box.Hvcc{}, init_data)
+
+          %{
+            track
+            | codec: :h265,
+              priv_data: {List.first(hvcc.vps), List.first(hvcc.sps), hvcc.pps}
+          }
+
+        :av1 ->
+          av1c = ExMP4.Box.parse(%ExMP4.Box.Av1c{}, init_data)
+          priv_data = if av1c.config_obus != <<>>, do: av1c.config_obus
+          %{track | codec: :av1, priv_data: priv_data}
+
+        _ ->
+          track
       end
 
     state = %{state | video_track: track}
@@ -70,7 +87,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
 
   @spec handle_audio_data(tuple(), state()) :: state()
   def handle_audio_data({:codec, codec, init_data}, state) do
-    track = Track.new(id: 2, type: :audio, codec: codec, timescale: 1000)
+    track = Track.new(id: 2, type: :audio, codec: codec, timescale: @timescale)
 
     track = if codec == :aac, do: %{track | priv_data: init_data}, else: track
 

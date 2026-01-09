@@ -28,12 +28,12 @@ defmodule Shinkai.Sources.RTMP do
   end
 
   @impl true
-  def handle_info({:video, _pid, _stream_od, sample}, state) do
+  def handle_info({:video, _pid, sample}, state) do
     media_processor = MediaProcessor.handle_video_data(sample, state.media_processor)
     {:noreply, %{state | media_processor: media_processor}}
   end
 
-  def handle_info({:audio, _pid, _stream_id, sample}, state) do
+  def handle_info({:audio, _pid, sample}, state) do
     media_processor = MediaProcessor.handle_audio_data(sample, state.media_processor)
     {:noreply, %{state | media_processor: media_processor}}
   end
@@ -75,8 +75,7 @@ defmodule Shinkai.Sources.RTMP do
 
   defp do_connect(state) do
     with :ok <- ExRTMP.Client.connect(state.pid),
-         {:ok, stream_id} <- ExRTMP.Client.create_stream(state.pid),
-         :ok <- ExRTMP.Client.play(state.pid, stream_id) do
+         :ok <- ExRTMP.Client.play(state.pid) do
       {:noreply, state}
     else
       {:error, reason} ->
