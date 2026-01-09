@@ -56,7 +56,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
 
         :av1 ->
           av1c = ExMP4.Box.parse(%ExMP4.Box.Av1c{}, init_data)
-          priv_data = if av1c.configuration_record != <<>>, do: av1c.configuration_record
+          priv_data = if av1c.config_obus != <<>>, do: av1c.config_obus
           %{track | codec: :av1, priv_data: priv_data}
 
         _ ->
