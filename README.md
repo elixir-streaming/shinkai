@@ -7,7 +7,7 @@ Live streams can be published to the server using:
 | Protocol | Variants | Video Codecs | Audio Codecs |
 |----------|----------|--------------|--------------|
 | RTSP client/cameras | TCP/UDP | H264, H265, AV1 | MPEG-4(AAC), G711(PCMA/PCMU) |\
-| RTMP client/publish | - | H264 | MPEG-4(AAC) |
+| RTMP client/publish | - | H264, H265, AV1 | MPEG-4(AAC), G711(PCMA/PCMU) |
 
 Live streams can be read from the server with:
 

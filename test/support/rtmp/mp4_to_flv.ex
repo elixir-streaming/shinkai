@@ -41,7 +41,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
 
     binary_part(avcc, 8, byte_size(avcc) - 8)
     |> AVC.new(:sequence_header, 0)
-    |> Tag.VideoData.new(:avc, :keyframe)
+    |> Tag.VideoData.new(:h264, :keyframe)
     |> Tag.Serializer.serialize()
   end
 
@@ -61,7 +61,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     sample =
       sample.payload
       |> AVC.new(:nalu, pts - dts)
-      |> Tag.VideoData.new(:avc, if(sample.sync?, do: :keyframe, else: :interframe))
+      |> Tag.VideoData.new(:h264, if(sample.sync?, do: :keyframe, else: :interframe))
       |> Tag.Serializer.serialize()
 
     {dts, sample}

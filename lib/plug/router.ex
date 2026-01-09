@@ -84,7 +84,7 @@ if Code.ensure_loaded?(Plug) do
     defp file_response(conn, content_type, path) do
       if File.exists?(path) do
         conn
-        |> put_resp_content_type(content_type)
+        |> put_resp_content_type(content_type, nil)
         |> send_file(200, path)
       else
         send_resp(conn, 404, "Not Found")
