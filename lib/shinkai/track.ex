@@ -3,7 +3,7 @@ defmodule Shinkai.Track do
   Module describing a media track.
   """
 
-  alias ExFLV.Tag.VideoData
+  alias ExFLV.Tag.{AudioData, ExVideoData, VideoData}
   alias ExMP4.Box
 
   @type codec :: :h264 | :h265 | :aac | atom()
@@ -47,5 +47,34 @@ defmodule Shinkai.Track do
     dcr
     |> VideoData.AVC.new(:sequence_header, 0)
     |> VideoData.new(:h264, :keyframe)
+  end
+
+  def to_rtmp_tag(%{codec: :aac} = track) do
+    asc = track.priv_data
+
+    asc
+    |> AudioData.AAC.new(:sequence_header)
+    |> AudioData.new(:aac, 1, 3, :stereo)
+  end
+
+  def to_rtmp_tag(%{codec: codec} = track) when codec in [:h265, :av1] do
+    %ExVideoData{
+      codec_id: codec,
+      frame_type: :keyframe,
+      packet_type: :sequence_start,
+      data: rtmp_init_data(codec, track.priv_data)
+    }
+  end
+
+  def to_rtmp_tag(_track), do: nil
+
+  defp rtmp_init_data(:h265, {vps, sps, pps}) do
+    <<_header::binary-size(8), dcr::binary>> = Box.Hvcc.new([vps], [sps], pps) |> Box.serialize()
+    dcr
+  end
+
+  defp rtmp_init_data(:av1, config_obu) do
+    <<_header::binary-size(8), dcr::binary>> = Box.Av1c.new(config_obu) |> Box.serialize()
+    dcr
   end
 end

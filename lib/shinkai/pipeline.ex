@@ -9,6 +9,15 @@ defmodule Shinkai.Pipeline do
     Supervisor.start_link(__MODULE__, source, name: :"#{source.id}")
   end
 
+  def alive?(source_id) do
+    Process.whereis(:"#{source_id}") != nil
+  end
+
+  @spec add_rtmp_client(String.t()) :: :ok
+  def add_rtmp_client(source_id) do
+    Sink.RTMP.add_client({:via, Registry, {Source.Registry, :rtmp_sink, source_id}}, self())
+  end
+
   def stop(source_id) do
     Supervisor.stop(:"#{source_id}")
   end
@@ -18,7 +27,8 @@ defmodule Shinkai.Pipeline do
     hls_config = Config.get_config(:hls)
 
     children = [
-      {Sink.Hls, [id: id] ++ hls_config}
+      {Sink.Hls, [id: id] ++ hls_config},
+      {Sink.RTMP, [id: id]}
     ]
 
     Supervisor.init(children ++ source(source), strategy: :one_for_all)

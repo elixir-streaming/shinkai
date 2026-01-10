@@ -11,10 +11,11 @@ defmodule Shinkai.Sink.RTMP do
 
   import Shinkai.Utils
 
-  alias ExFLV.Tag.{Serializer, VideoData}
+  alias ExFLV.Tag.{AudioData, ExVideoData, Serializer, VideoData}
   alias Phoenix.PubSub
 
   @timescale 1000
+  @supported_codesc [:h264, :h265, :av1, :aac, :pcma, :pcmu]
 
   def start_link(opts) do
     name = {:via, Registry, {Source.Registry, :rtmp_sink, opts[:id]}}
@@ -49,18 +50,28 @@ defmodule Shinkai.Sink.RTMP do
 
   @impl true
   def handle_info({:tracks, tracks}, state) do
-    init_tags =
-      Map.new(tracks, fn track ->
-        tag =
-          track
-          |> Shinkai.Track.to_rtmp_tag()
-          |> ExFLV.Tag.Serializer.serialize()
+    {supported_tracks, unsupported_tracks} =
+      Enum.split_with(tracks, &(&1.codec in @supported_codesc))
 
-        {track.id, tag}
+    if unsupported_tracks != [] do
+      Logger.warning(
+        "[#{state.source_id}] Ignore unsupported tracks: #{Enum.map_join(unsupported_tracks, ", ", & &1.codec)}"
+      )
+    end
+
+    init_tags =
+      Enum.reduce(supported_tracks, %{}, fn track, acc ->
+        case Shinkai.Track.to_rtmp_tag(track) do
+          nil -> acc
+          tag -> Map.put(acc, track.id, Serializer.serialize(tag))
+        end
       end)
 
-    :ok = PubSub.subscribe(Shinkai.PubSub, state.packet_topic)
-    {:noreply, %{state | tracks: Map.new(tracks, &{&1.id, &1}), init_tags: init_tags}}
+    if supported_tracks != [] do
+      :ok = PubSub.subscribe(Shinkai.PubSub, state.packet_topic)
+    end
+
+    {:noreply, %{state | tracks: Map.new(supported_tracks, &{&1.id, &1}), init_tags: init_tags}}
   end
 
   @impl true
@@ -88,13 +99,36 @@ defmodule Shinkai.Sink.RTMP do
     tag =
       case track.codec do
         :h264 ->
-          packet.data
-          |> Enum.map(&[<<byte_size(&1)::32>>, &1])
+          maybe_prefix_payload(:h264, packet.data)
           |> VideoData.AVC.new(:nalu, cts)
           |> VideoData.new(:h264, if(packet.sync?, do: :keyframe, else: :interframe))
-          |> Serializer.serialize()
+
+        :aac ->
+          packet.data
+          |> AudioData.AAC.new(:raw)
+          |> AudioData.new(:aac, 1, 3, :stereo)
+
+        codec when codec in [:h265, :av1] ->
+          packet_type = if codec == :h265 and cts != 0, do: :coded_frames, else: :coded_frames_x
+
+          %ExVideoData{
+            codec_id: codec,
+            frame_type: if(packet.sync?, do: :keyframe, else: :interframe),
+            packet_type: packet_type,
+            composition_time_offset: cts,
+            data: maybe_prefix_payload(codec, packet.data)
+          }
+
+        codec ->
+          AudioData.new(packet.data, codec, 3, 1, :stereo)
       end
 
-    {dts, IO.iodata_to_binary(tag)}
+    {dts, Serializer.serialize(tag) |> IO.iodata_to_binary()}
   end
+
+  defp maybe_prefix_payload(codec, payload) when codec in [:h264, :h265] do
+    Enum.map(payload, &[<<byte_size(&1)::32>>, &1])
+  end
+
+  defp maybe_prefix_payload(_codec, payload), do: payload
 end
