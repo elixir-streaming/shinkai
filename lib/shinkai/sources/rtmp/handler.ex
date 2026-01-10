@@ -19,8 +19,11 @@ defmodule Shinkai.Sources.RTMP.Handler do
   end
 
   @impl true
-  def handle_play(_play, _state) do
-    {:error, :unsupported}
+  def handle_play(play, state) do
+    with {:ok, source_id} <- source_id(state.app, play.name),
+         :ok <- Shinkai.Sources.add_rtmp_client(source_id) do
+      {:ok, state}
+    end
   end
 
   @impl true
