@@ -12,6 +12,7 @@ defmodule Shinkai.Sink.RTMP do
   import Shinkai.Utils
 
   alias ExFLV.Tag.{AudioData, ExVideoData, Serializer, VideoData}
+  alias ExRTMP.Server.ClientSession
   alias Phoenix.PubSub
 
   @timescale 1000
@@ -40,8 +41,8 @@ defmodule Shinkai.Sink.RTMP do
   def handle_call({:add_client, pid}, _from, state) do
     for {track_id, tag} <- state.init_tags do
       case state.tracks[track_id].type do
-        :video -> ExRTMP.Server.ClientSession.send_video_data(pid, 0, tag)
-        :audio -> ExRTMP.Server.ClientSession.send_audio_data(pid, 0, tag)
+        :video -> ClientSession.send_video_data(pid, 0, tag)
+        :audio -> ClientSession.send_audio_data(pid, 0, tag)
       end
     end
 
@@ -83,9 +84,22 @@ defmodule Shinkai.Sink.RTMP do
 
       for {pid, _} <- entries, {timestamp, data} <- tags do
         case track.type do
-          :video -> ExRTMP.Server.ClientSession.send_video_data(pid, timestamp, data)
-          :audio -> ExRTMP.Server.ClientSession.send_audio_data(pid, timestamp, data)
+          :video -> ClientSession.send_video_data(pid, timestamp, data)
+          :audio -> ClientSession.send_audio_data(pid, timestamp, data)
         end
+      end
+    end)
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(:disconnected, state) do
+    Logger.warning("[#{state.source_id}] [RTMP Sink] source disconnected")
+
+    Registry.dispatch(Sink.Registry, {:rtmp, state.source_id}, fn entries ->
+      for {pid, _} <- entries do
+        send(pid, :exit)
       end
     end)
 

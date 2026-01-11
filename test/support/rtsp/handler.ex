@@ -85,7 +85,14 @@ defmodule Shinkai.RTSP.Server.Handler do
     fmtp =
       case track.media do
         :h264 ->
-          %ExSDP.Attribute.FMTP{pt: pt, packetization_mode: 1}
+          sps = List.first(track.priv_data.sps)
+          pps = List.first(track.priv_data.pps)
+
+          %ExSDP.Attribute.FMTP{
+            pt: pt,
+            packetization_mode: 1,
+            sprop_parameter_sets: %{sps: sps, pps: pps}
+          }
 
         :aac ->
           "fmtp:#{pt} mode=AAC-hbr; config=118004C844002000C40D4C61766335382E35342E31303056E500"

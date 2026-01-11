@@ -5,6 +5,7 @@ defmodule Shinkai.Track do
 
   alias ExFLV.Tag.{AudioData, ExVideoData, VideoData}
   alias ExMP4.Box
+  alias MediaCodecs.MPEG4
 
   @type codec :: :h264 | :h265 | :aac | atom()
 
@@ -50,9 +51,14 @@ defmodule Shinkai.Track do
   end
 
   def to_rtmp_tag(%{codec: :aac} = track) do
-    asc = track.priv_data
+    asc =
+      if is_binary(track.priv_data),
+        do: track.priv_data,
+        else: MPEG4.AudioSpecificConfig.serialize(track.priv_data)
 
     asc
+    |> Box.Esds.new()
+    |> Box.serialize()
     |> AudioData.AAC.new(:sequence_header)
     |> AudioData.new(:aac, 1, 3, :stereo)
   end

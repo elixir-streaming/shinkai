@@ -19,40 +19,98 @@ defmodule Shinkai.PipelineTest do
     %{rtsp_server: server}
   end
 
-  test "Stream from rtsp", %{rtsp_server: server, tmp_dir: _dir} do
-    source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server)}
-    Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
+  describe "hls sink" do
+    test "Stream from rtsp", %{rtsp_server: server, tmp_dir: _dir} do
+      source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server)}
+      Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
 
-    _pid = start_supervised!({Shinkai.Pipeline, source})
+      _pid = start_supervised!({Shinkai.Pipeline, source})
 
-    assert_receive {:hls, :done}, 5_000
+      assert_receive {:hls, :done}, 5_000
 
-    hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-    assert_hls(hls_path)
+      hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
+      assert_hls(hls_path)
 
-    File.rm_rf!(hls_path)
+      File.rm_rf!(hls_path)
+    end
+
+    test "Stream from rtmp" do
+      {:ok, rtmp_server} =
+        ExRTMP.Server.start(
+          port: 0,
+          handler: Shinkai.RTMP.Server.Handler,
+          handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
+        )
+
+      source = %Source{id: UUID.uuid4(), type: :rtmp, uri: rtmp_uri(rtmp_server, "live/test")}
+      Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
+
+      _pid = start_supervised!({Shinkai.Pipeline, source})
+
+      assert_receive {:hls, :done}, 5_000
+
+      hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
+      assert_hls(hls_path)
+
+      ExRTMP.Server.stop(rtmp_server)
+      File.rm_rf!(hls_path)
+    end
   end
 
-  test "Stream from rtmp" do
-    {:ok, rtmp_server} =
-      ExRTMP.Server.start(
-        port: 0,
-        handler: Shinkai.RTMP.Server.Handler,
-        handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
-      )
+  describe "rtmp sink" do
+    test "Stream from rtsp", %{rtsp_server: server, tmp_dir: _dir} do
+      {:ok, rtmp_server} = ExRTMP.Server.start(port: 0, handler: Shinkai.Sources.RTMP.Handler)
+      source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server)}
+      _pid = start_supervised!({Shinkai.Pipeline, source})
 
-    source = %Source{id: UUID.uuid4(), type: :rtmp, uri: rtmp_uri(rtmp_server)}
-    Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
+      # Wait for the RTMP sink to receive tracks
+      Process.sleep(120)
 
-    _pid = start_supervised!({Shinkai.Pipeline, source})
+      {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server), stream_key: source.id)
+      assert :ok = ExRTMP.Client.connect(pid)
+      assert :ok = ExRTMP.Client.play(pid)
 
-    assert_receive {:hls, :done}, 5_000
+      assert_rtmp_receive(pid)
 
-    hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-    assert_hls(hls_path)
+      ExRTMP.Server.stop(rtmp_server)
+    end
 
-    ExRTMP.Server.stop(rtmp_server)
-    File.rm_rf!(hls_path)
+    test "Stream from rtmp" do
+      {:ok, rtmp_server} =
+        ExRTMP.Server.start(
+          port: 0,
+          handler: Shinkai.RTMP.Server.Handler,
+          handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
+        )
+
+      id = UUID.uuid4()
+
+      source = %Source{id: "live-#{id}", type: :rtmp, uri: rtmp_uri(rtmp_server, "live/#{id}")}
+
+      _pid = start_supervised!({Shinkai.Pipeline, source})
+
+      {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server, "live"), stream_key: id)
+      assert :ok = ExRTMP.Client.connect(pid)
+      assert :ok = ExRTMP.Client.play(pid)
+
+      assert_rtmp_receive(pid)
+
+      ExRTMP.Server.stop(rtmp_server)
+    end
+
+    defp assert_rtmp_receive(pid) do
+      assert_receive {:video, ^pid, {:codec, :h264, _dcr}}, 1000
+      assert_receive {:audio, ^pid, {:codec, :aac, _}}, 1000
+
+      for _i <- 1..50 do
+        assert_receive {:video, ^pid, {:sample, payload, _dts, _pts, keyframe?}}, 1000
+        assert_receive {:audio, ^pid, {:sample, data, _dts}}, 1000
+
+        assert is_list(payload)
+        assert is_binary(data)
+        assert is_boolean(keyframe?)
+      end
+    end
   end
 
   defp assert_hls(hls_path) do
@@ -89,9 +147,9 @@ defmodule Shinkai.PipelineTest do
     "rtsp://127.0.0.1:#{port}"
   end
 
-  defp rtmp_uri(server) do
+  defp rtmp_uri(server, path \\ "") do
     {:ok, port} = ExRTMP.Server.port(server)
-    "rtmp://127.0.0.1:#{port}/live/test"
+    "rtmp://127.0.0.1:#{port}/#{path}"
   end
 
   defp assert_media_playlist(hls_path, variant, target_duration, segments_count) do

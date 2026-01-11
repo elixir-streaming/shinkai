@@ -25,16 +25,20 @@ defmodule Shinkai.Pipeline do
   @impl true
   def init(%Sources.Source{id: id} = source) do
     hls_config = Config.get_config(:hls)
+    rtmp_config = Config.get_config(:rtmp)
 
-    children = [
-      {Sink.Hls, [id: id] ++ hls_config},
-      {Sink.RTMP, [id: id]}
-    ]
+    children =
+      [
+        {Sink.Hls, [id: id] ++ hls_config}
+      ] ++ rtmp_sink(rtmp_config[:enabled], id) ++ source(source)
 
-    Supervisor.init(children ++ source(source), strategy: :one_for_all)
+    Supervisor.init(children, strategy: :one_for_all)
   end
 
   defp source(%{type: :rtsp} = source), do: [{Sources.RTSP, source}]
   defp source(%{type: :rtmp} = source), do: [{Sources.RTMP, source}]
   defp source(_), do: []
+
+  defp rtmp_sink(false, _id), do: []
+  defp rtmp_sink(true, id), do: [{Sink.RTMP, [id: id]}]
 end
