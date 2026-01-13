@@ -13,7 +13,7 @@ defmodule Shinkai.RTMP.Server.Handler do
     pid = self()
 
     spawn(fn ->
-      Process.sleep(100)
+      Process.sleep(10)
       Mp4ToFlv.convert(state[:fixture], pid)
     end)
 

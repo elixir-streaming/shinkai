@@ -32,9 +32,9 @@ defmodule Shinkai.MixProject do
   defp deps do
     [
       {:phoenix_pubsub, "~> 2.2"},
-      {:rtsp, "~> 0.6.0"},
+      {:rtsp, "~> 0.7.0"},
       {:hlx, "~> 0.5.0"},
-      {:ex_rtmp, "~> 0.4.0"},
+      {:ex_rtmp, "~> 0.4.1"},
       {:yaml_elixir, "~> 2.12"},
       {:plug, "~> 1.19", optional: true},
       {:bandit, "~> 1.8", optional: true},
