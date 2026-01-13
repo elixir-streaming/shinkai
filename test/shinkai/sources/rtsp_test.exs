@@ -1,24 +1,24 @@
 defmodule Shinkai.Sources.RTSPTest do
   use ExUnit.Case, async: true
 
-  alias Membrane.RTSP.Server
+  alias RTSP.FileServer
   alias Shinkai.Sources.Source
 
   setup do
     {:ok, server} =
-      Server.start_link(
+      FileServer.start_link(
         port: 0,
-        handler: Shinkai.RTSP.Server.Handler,
-        handler_config: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
+        files: [%{path: "/test", location: "test/fixtures/big_buck_avc_aac.mp4"}],
+        rate_control: false
       )
 
     %{rtsp_server: server}
   end
 
   test "tracks received from rtsp source", %{rtsp_server: server} do
-    {:ok, port} = Server.port_number(server)
+    {:ok, port} = FileServer.port_number(server)
 
-    source = %Source{id: "test", type: :rtsp, uri: "rtsp://127.0.0.1:#{port}"}
+    source = %Source{id: "test", type: :rtsp, uri: "rtsp://127.0.0.1:#{port}/test"}
     Phoenix.PubSub.subscribe(Shinkai.PubSub, Shinkai.Utils.tracks_topic(source.id))
 
     _pid = start_supervised!({Shinkai.Sources.RTSP, source})
@@ -54,9 +54,9 @@ defmodule Shinkai.Sources.RTSPTest do
   end
 
   test "packets are received from rtsp source", %{rtsp_server: server} do
-    {:ok, port} = Server.port_number(server)
+    {:ok, port} = FileServer.port_number(server)
 
-    source = %Source{id: UUID.uuid4(), type: :rtsp, uri: "rtsp://127.0.0.1:#{port}"}
+    source = %Source{id: UUID.uuid4(), type: :rtsp, uri: "rtsp://127.0.0.1:#{port}/test"}
     Phoenix.PubSub.subscribe(Shinkai.PubSub, Shinkai.Utils.packets_topic(source.id))
     Phoenix.PubSub.subscribe(Shinkai.PubSub, Shinkai.Utils.state_topic(source.id))
 
@@ -67,7 +67,7 @@ defmodule Shinkai.Sources.RTSPTest do
     assert Enum.filter(packets, &(&1.track_id == 1)) |> length() == 300
     assert Enum.filter(packets, &(&1.track_id == 2)) |> length() == 470
 
-    Server.stop(server)
+    FileServer.stop(server)
 
     assert_receive :disconnected, 1_000
   end
