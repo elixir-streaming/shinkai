@@ -80,7 +80,9 @@ defmodule Shinkai.Track do
   end
 
   defp rtmp_init_data(:av1, config_obu) do
-    <<_header::binary-size(8), dcr::binary>> = Box.Av1c.new(config_obu) |> Box.serialize()
+    <<_header::binary-size(8), dcr::binary>> =
+      Box.Av1c.new(config_obu) |> Box.serialize() |> IO.iodata_to_binary()
+
     dcr
   end
 end
