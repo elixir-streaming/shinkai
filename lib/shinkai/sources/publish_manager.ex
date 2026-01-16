@@ -32,13 +32,12 @@ defmodule Shinkai.Sources.PublishManager do
 
   @impl true
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
-    Logger.debug("Publisher process down, stopping source")
-
     case Map.pop(state, ref) do
       {nil, _state} ->
         {:noreply, state}
 
       {source, new_state} ->
+        Logger.info("[publish] Stop publishing to source: #{source.id}")
         Shinkai.Sources.stop(source)
         {:noreply, new_state}
     end

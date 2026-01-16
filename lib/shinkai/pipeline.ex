@@ -15,7 +15,7 @@ defmodule Shinkai.Pipeline do
 
   @spec add_rtmp_client(String.t()) :: :ok
   def add_rtmp_client(source_id) do
-    Sink.RTMP.add_client({:via, Registry, {Source.Registry, :rtmp_sink, source_id}}, self())
+    Sink.RTMP.add_client({:via, Registry, {Source.Registry, {:rtmp_sink, source_id}}}, self())
   end
 
   def stop(source_id) do
