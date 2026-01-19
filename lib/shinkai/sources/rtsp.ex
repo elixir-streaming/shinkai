@@ -60,6 +60,7 @@ defmodule Shinkai.Sources.RTSP do
   def handle_info({:rtsp, pid, :session_closed}, %{rtsp_pid: pid} = state) do
     Logger.error("[#{state.id}] rtsp client disconnected")
     Phoenix.PubSub.broadcast!(Shinkai.PubSub, state_topic(state.id), :disconnected)
+    Sources.update_source_status(state.id, :failed)
     Process.send_after(self(), :reconnect, @reconnect_timeout)
     {:noreply, state}
   end
