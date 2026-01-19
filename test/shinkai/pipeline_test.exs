@@ -63,7 +63,7 @@ defmodule Shinkai.PipelineTest do
       source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server)}
 
       {:ok, rtmp_server} = ExRTMP.Server.start(port: 0, handler: Shinkai.Sources.RTMP.Handler)
-      _pid = start_supervised!({Shinkai.Pipeline, source})
+      start_source(source)
 
       # Wait for the RTMP sink to receive tracks
       Process.sleep(150)
@@ -113,6 +113,11 @@ defmodule Shinkai.PipelineTest do
         assert is_boolean(keyframe?)
       end
     end
+  end
+
+  defp start_source(source) do
+    :ets.insert(:sources, {source.id, source})
+    _pid = start_supervised!({Shinkai.Pipeline, source})
   end
 
   defp assert_hls(hls_path) do

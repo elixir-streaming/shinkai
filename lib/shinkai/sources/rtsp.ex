@@ -8,7 +8,7 @@ defmodule Shinkai.Sources.RTSP do
   import Shinkai.Utils
 
   alias MediaCodecs.MPEG4
-  alias Shinkai.Track
+  alias Shinkai.{Sources, Track}
 
   @timeout 6_000
   @reconnect_timeout 5_000
@@ -60,6 +60,7 @@ defmodule Shinkai.Sources.RTSP do
   def handle_info({:rtsp, pid, :session_closed}, %{rtsp_pid: pid} = state) do
     Logger.error("[#{state.id}] rtsp client disconnected")
     Phoenix.PubSub.broadcast!(Shinkai.PubSub, state_topic(state.id), :disconnected)
+    Sources.update_source_status(state.id, :failed)
     Process.send_after(self(), :reconnect, @reconnect_timeout)
     {:noreply, state}
   end
@@ -77,6 +78,8 @@ defmodule Shinkai.Sources.RTSP do
       codecs = tracks |> Map.values() |> Enum.map_join(", ", & &1.codec)
       Logger.info("[#{state.id}] start reading from #{map_size(tracks)} tracks (#{codecs})")
 
+      update_status(state, :streaming)
+
       :ok =
         Phoenix.PubSub.broadcast(
           Shinkai.PubSub,
@@ -88,6 +91,7 @@ defmodule Shinkai.Sources.RTSP do
     else
       {:error, reason} ->
         Logger.error("[#{state.id}] rtsp connection failed: #{inspect(reason)}")
+        update_status(state, :failed)
         Process.send_after(self(), :reconnect, @reconnect_timeout)
         {:noreply, state}
     end
@@ -117,7 +121,7 @@ defmodule Shinkai.Sources.RTSP do
   defp priv_data(:h264, %{sprop_parameter_sets: nil}), do: nil
   defp priv_data(:h264, %{sprop_parameter_sets: pps}), do: {pps.sps, [pps.pps]}
   defp priv_data(:h265, %{sprop_vps: nil}), do: nil
-  defp priv_data(:h265, fmtp), do: {fmtp.sprop_vps, fmtp.sprop_sps, [fmtp.sprop_pps]}
+  defp priv_data(:h265, fmtp), do: {hd(fmtp.sprop_vps), hd(fmtp.sprop_sps), fmtp.sprop_pps}
   defp priv_data(_codec, _fmtp), do: nil
 
   defp to_packets(samples, track_id) when is_list(samples) do
@@ -133,5 +137,9 @@ defmodule Shinkai.Sources.RTSP do
       pts: pts,
       sync?: sync?
     )
+  end
+
+  defp update_status(state, status) do
+    Sources.update_source_status(state.id, status)
   end
 end
