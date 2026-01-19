@@ -12,7 +12,9 @@ defmodule Shinkai.Config do
     ],
     server: [
       enabled: true,
-      port: 8888
+      port: 8888,
+      certfile: nil,
+      keyfile: nil
     ],
     hls: [
       storage_dir: "/tmp/shinkai/hls",
@@ -162,6 +164,7 @@ defmodule Shinkai.Config do
     """
   end
 
+  # HTTP server
   defp parse_and_validate_server(config, acc \\ [])
   defp parse_and_validate_server(nil, _acc), do: []
   defp parse_and_validate_server([], acc), do: acc
@@ -180,6 +183,11 @@ defmodule Shinkai.Config do
     parse_and_validate_server(rest, [{:port, value} | acc])
   end
 
+  defp parse_and_validate_server([{key, value} | rest], acc)
+       when key in ["certfile", "keyfile", :certfile, :keyfile] do
+    parse_and_validate_server(rest, [{String.to_atom(key), value} | acc])
+  end
+
   defp parse_and_validate_server([{key, value} | _rest], _acc) do
     raise ArgumentError, """
     Invalid Server configuration key or value detected.
@@ -187,6 +195,7 @@ defmodule Shinkai.Config do
     """
   end
 
+  # RTMP
   defp parse_and_validate_rtmp(config, acc \\ [])
   defp parse_and_validate_rtmp(nil, _acc), do: []
   defp parse_and_validate_rtmp([], acc), do: acc

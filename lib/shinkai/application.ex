@@ -28,12 +28,23 @@ defmodule Shinkai.Application do
 
     children =
       if Code.ensure_loaded?(Bandit) and config[:server][:enabled] do
-        children ++ [{Bandit, plug: Plug.Shinkai.Router, port: config[:server][:port]}]
+        children ++ [{Bandit, configure_bandit(config[:server])}]
       else
         children
       end
 
     opts = [strategy: :one_for_one, name: Shinkai.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp configure_bandit(config) do
+    https_config =
+      if config[:certfile] && config[:keyfile] do
+        [scheme: :https, keyfile: config[:keyfile], certfile: config[:certfile]]
+      else
+        []
+      end
+
+    https_config ++ [plug: Plug.Shinkai.Router, port: config[:port]]
   end
 end

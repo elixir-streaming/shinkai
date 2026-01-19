@@ -27,7 +27,9 @@ defmodule Shinkai.ConfigTest do
 
       assert %{
                enabled: false,
-               port: 8888
+               port: 8888,
+               certfile: nil,
+               keyfile: nil
              } == Map.new(config[:server])
     end
 
