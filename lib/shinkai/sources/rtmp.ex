@@ -5,6 +5,7 @@ defmodule Shinkai.Sources.RTMP do
 
   require Logger
 
+  alias Shinkai.Sources
   alias Shinkai.Sources.RTMP.MediaProcessor
 
   @reconnect_timeout 5_000
@@ -76,10 +77,12 @@ defmodule Shinkai.Sources.RTMP do
   defp do_connect(state) do
     with :ok <- ExRTMP.Client.connect(state.pid),
          :ok <- ExRTMP.Client.play(state.pid) do
+      Sources.update_source_status(state.source_id, :streaming)
       {:noreply, state}
     else
       {:error, reason} ->
         Logger.error("[#{state.source_id}] Failed to connect: #{inspect(reason)}")
+        Sources.update_source_status(state.source_id, :streaming)
         reconnect()
         {:noreply, state}
     end
