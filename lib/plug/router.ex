@@ -23,8 +23,17 @@ if Code.ensure_loaded?(Plug) do
     end
 
     get "/hls/:source_id/master.m3u8" do
-      path = Path.join([hls_config()[:storage_dir], source_id, "master.m3u8"])
-      file_response(conn, "application/vnd.apple.mpegurl", path)
+      case Shinkai.Sources.check_source(source_id) do
+        :ok ->
+          path = Path.join([hls_config()[:storage_dir], source_id, "master.m3u8"])
+          file_response(conn, "application/vnd.apple.mpegurl", path)
+
+        {:error, :source_not_connected} ->
+          conn |> put_resp_header("retry-after", "10") |> send_resp(503, "Source not connected")
+
+        _ ->
+          send_resp(conn, 404, "Source not found")
+      end
     end
 
     get "/hls/:source_id/*path" do
