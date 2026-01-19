@@ -121,7 +121,7 @@ defmodule Shinkai.Sources.RTSP do
   defp priv_data(:h264, %{sprop_parameter_sets: nil}), do: nil
   defp priv_data(:h264, %{sprop_parameter_sets: pps}), do: {pps.sps, [pps.pps]}
   defp priv_data(:h265, %{sprop_vps: nil}), do: nil
-  defp priv_data(:h265, fmtp), do: {fmtp.sprop_vps, fmtp.sprop_sps, [fmtp.sprop_pps]}
+  defp priv_data(:h265, fmtp), do: {hd(fmtp.sprop_vps), hd(fmtp.sprop_sps), fmtp.sprop_pps}
   defp priv_data(_codec, _fmtp), do: nil
 
   defp to_packets(samples, track_id) when is_list(samples) do

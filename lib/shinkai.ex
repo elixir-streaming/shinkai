@@ -97,7 +97,15 @@ defmodule Shinkai do
   @doc false
   def load do
     config_path = config_path()
-    config = if File.exists?(config_path), do: YamlElixir.read_from_file!(config_path), else: %{}
+
+    config =
+      if File.exists?(config_path) do
+        YamlElixir.read_from_file!(config_path)
+      else
+        Logger.warning("No config file found, apply default config")
+        %{}
+      end
+
     {paths, config} = Map.pop(config, "paths")
 
     parse_sources(paths || %{})

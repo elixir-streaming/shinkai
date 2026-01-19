@@ -73,16 +73,21 @@ defmodule Shinkai.Sources do
   @doc """
   Adds an RTMP client to the specified source pipeline.
   """
-  @spec add_rtmp_client(String.t()) :: :ok | {:error, :source_not_found}
+  @spec add_rtmp_client(String.t()) :: :ok | {:error, :source_not_found | :source_not_connected}
   def add_rtmp_client(source_id) do
-    case Pipeline.alive?(source_id) do
-      true ->
-        Pipeline.add_rtmp_client(source_id)
-        Registry.register(Sink.Registry, {:rtmp, source_id}, nil)
-        :ok
+    with :ok <- check_source(source_id) do
+      Pipeline.add_rtmp_client(source_id)
+      Registry.register(Sink.Registry, {:rtmp, source_id}, nil)
+      :ok
+    end
+  end
 
-      false ->
-        {:error, :source_not_found}
+  @doc false
+  def check_source(source_id) do
+    case :ets.lookup(:sources, source_id) do
+      [] -> {:error, :source_not_found}
+      [{_, %{status: :failed}}] -> {:error, :source_not_connected}
+      _other -> :ok
     end
   end
 
