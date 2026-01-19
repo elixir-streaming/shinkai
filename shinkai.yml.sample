@@ -5,6 +5,8 @@ rtmp:
 server:
     enabled: true
     port: 8888
+    # certfile: server.crt
+    # keyfile: server.key
 
 hls:
     segment_type: fmp4

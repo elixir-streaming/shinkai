@@ -17,17 +17,23 @@ defmodule Shinkai do
 
     * `enabled` - Enable or disable the HTTP server.
     * `port` - Port number for the HTTP server.
+    * `certfile` - Path to the SSL certificate file (optional).
+    * `keyfile` - Path to the SSL key file (optional).
 
     ```elixir
     config :shinkai, :server,
       enabled: true,
-      port: 8888
+      port: 8888,
+      certfile: server.crt,
+      keyfile: server.key
     ```
 
     ```yaml
     server:
       enabled: true          # Enable or disable the HTTP server (default: true)
       port: 8888             # Port number for the HTTP server (default: 8888)
+      certfile: server.crt   # Path to the SSL certificate file (optional)
+      keyfile: server.key    # Path to the SSL key file (optional)
     ```
 
   ### HLS
