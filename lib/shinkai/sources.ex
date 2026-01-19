@@ -40,6 +40,23 @@ defmodule Shinkai.Sources do
   end
 
   @doc """
+  Updates the status of a source
+  """
+  @spec update_source_status(Source.id(), Source.status()) ::
+          {:ok, Source.t()} | {:error, :not_found}
+  def update_source_status(source_id, status) do
+    case :ets.lookup(:sources, source_id) do
+      [{_id, source}] ->
+        updated_source = %{source | status: status}
+        :ets.insert(:sources, {source_id, updated_source})
+        {:ok, updated_source}
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
   Stops a media source pipeline.
   """
   @spec stop(Source.t()) :: :ok
