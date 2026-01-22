@@ -20,7 +20,7 @@ defmodule Shinkai.Sources.RTSP do
   def init(source) do
     Logger.info("[#{source.id}] Starting new rtsp source")
 
-    {:ok, pid} = RTSP.start_link(stream_uri: source.uri, transport: {:udp, 10000, 20000})
+    {:ok, pid} = RTSP.start_link(stream_uri: source.uri)
 
     if function_exported?(Process, :set_label, 1) do
       # credo:disable-for-next-line
@@ -52,7 +52,7 @@ defmodule Shinkai.Sources.RTSP do
   def handle_info({:rtsp, pid, :session_closed}, %{rtsp_pid: pid} = state) do
     Logger.error("[#{state.id}] rtsp client disconnected")
     Phoenix.PubSub.broadcast!(Shinkai.PubSub, Shinkai.Utils.state_topic(state.id), :disconnected)
-    update_status(state.id, :failed)
+    update_status(state, :failed)
     Process.send_after(self(), :reconnect, @reconnect_timeout)
     {:noreply, state}
   end
