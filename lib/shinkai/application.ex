@@ -16,7 +16,8 @@ defmodule Shinkai.Application do
       {Sources.PublishManager, []},
       {Registry, name: Sink.Registry, keys: :duplicate},
       {Registry, name: Source.Registry, keys: :unique},
-      {Task, fn -> Sources.start_all() end}
+      {Task, fn -> Sources.start_all() end},
+      {RTSP.Server, handler: Sources.RTSP.Handler, port: 8554}
     ]
 
     children =

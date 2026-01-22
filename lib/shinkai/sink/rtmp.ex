@@ -56,7 +56,7 @@ defmodule Shinkai.Sink.RTMP do
 
     if unsupported_tracks != [] do
       Logger.warning(
-        "[#{state.source_id}] Ignore unsupported tracks: #{Enum.map_join(unsupported_tracks, ", ", & &1.codec)}"
+        "[#{state.source_id}] rtmp sink: ignore unsupported tracks: #{Enum.map_join(unsupported_tracks, ", ", & &1.codec)}"
       )
     end
 

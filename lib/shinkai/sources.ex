@@ -26,7 +26,7 @@ defmodule Shinkai.Sources do
       [] ->
         if source.type == :publish do
           :ok = PublishManager.monitor(source, self())
-          :ets.insert(:sources, {source.id, source})
+          :ets.insert(:sources, {source.id, %{source | status: :streaming}})
         end
 
         DynamicSupervisor.start_child(

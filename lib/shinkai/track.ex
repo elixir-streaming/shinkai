@@ -29,6 +29,19 @@ defmodule Shinkai.Track do
   end
 
   @doc false
+  def from_rtsp_track(id, track) do
+    codec = rtpmap_codec(String.downcase(track.rtpmap.encoding))
+
+    %__MODULE__{
+      id: id,
+      type: track.type,
+      codec: codec,
+      timescale: track.rtpmap.clock_rate,
+      priv_data: fmtp_priv_data(codec, track.fmtp)
+    }
+  end
+
+  @doc false
   @spec to_hls_track(t()) :: HLX.Track.t()
   def to_hls_track(track) do
     HLX.Track.new(
@@ -80,9 +93,18 @@ defmodule Shinkai.Track do
   end
 
   defp rtmp_init_data(:av1, config_obu) do
-    <<_header::binary-size(8), dcr::binary>> =
-      Box.Av1c.new(config_obu) |> Box.serialize() |> IO.iodata_to_binary()
-
+    <<_header::binary-size(8), dcr::binary>> = config_obu |> Box.Av1c.new() |> Box.serialize()
     dcr
   end
+
+  defp rtpmap_codec("mpeg4-generic"), do: :aac
+  defp rtpmap_codec(other), do: String.to_atom(other)
+
+  defp fmtp_priv_data(:aac, %{config: nil}), do: raise("Missing AAC config in FMTP")
+  defp fmtp_priv_data(:aac, fmtp), do: MPEG4.AudioSpecificConfig.parse(fmtp.config)
+  defp fmtp_priv_data(:h264, %{sprop_parameter_sets: nil}), do: nil
+  defp fmtp_priv_data(:h264, %{sprop_parameter_sets: pps}), do: {pps.sps, [pps.pps]}
+  defp fmtp_priv_data(:h265, %{sprop_vps: nil}), do: nil
+  defp fmtp_priv_data(:h265, fmtp), do: {hd(fmtp.sprop_vps), hd(fmtp.sprop_sps), fmtp.sprop_pps}
+  defp fmtp_priv_data(_codec, _fmtp), do: nil
 end

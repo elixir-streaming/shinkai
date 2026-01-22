@@ -71,6 +71,8 @@ defmodule Shinkai.Sink.Hls do
       )
     end
 
+    Logger.info("[#{state.source_id}] [hls] start muxing")
+
     audio_track = Enum.find(hls_tracks, fn t -> t.type == :audio end)
     video_track = Enum.find(hls_tracks, fn t -> t.type == :video end)
 

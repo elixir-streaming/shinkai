@@ -7,7 +7,6 @@ defmodule Shinkai.Sources.RTSP do
 
   import Shinkai.Utils
 
-  alias MediaCodecs.MPEG4
   alias Shinkai.{Sources, Track}
 
   @timeout 6_000
@@ -100,29 +99,8 @@ defmodule Shinkai.Sources.RTSP do
   defp build_tracks(tracks) do
     tracks
     |> Enum.with_index(1)
-    |> Map.new(fn {track, id} ->
-      codec = codec(String.downcase(track.rtpmap.encoding))
-
-      {track.control_path,
-       Track.new(
-         id: id,
-         type: track.type,
-         codec: codec,
-         timescale: track.rtpmap.clock_rate,
-         priv_data: priv_data(codec, track.fmtp)
-       )}
-    end)
+    |> Map.new(fn {track, id} -> {track.control_path, Track.from_rtsp_track(id, track)} end)
   end
-
-  defp codec("mpeg4-generic"), do: :aac
-  defp codec(other), do: String.to_atom(other)
-
-  defp priv_data(:aac, fmtp), do: MPEG4.AudioSpecificConfig.parse(fmtp.config)
-  defp priv_data(:h264, %{sprop_parameter_sets: nil}), do: nil
-  defp priv_data(:h264, %{sprop_parameter_sets: pps}), do: {pps.sps, [pps.pps]}
-  defp priv_data(:h265, %{sprop_vps: nil}), do: nil
-  defp priv_data(:h265, fmtp), do: {hd(fmtp.sprop_vps), hd(fmtp.sprop_sps), fmtp.sprop_pps}
-  defp priv_data(_codec, _fmtp), do: nil
 
   defp to_packets(samples, track_id) when is_list(samples) do
     Enum.map(samples, &packet_from_sample(track_id, &1))
