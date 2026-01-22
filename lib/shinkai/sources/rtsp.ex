@@ -5,9 +5,8 @@ defmodule Shinkai.Sources.RTSP do
 
   require Logger
 
-  import Shinkai.Utils
-
-  alias Shinkai.{Sources, Track}
+  alias Shinkai.Sources
+  alias Shinkai.Sources.RTSP.MediaProcessor
 
   @timeout 6_000
   @reconnect_timeout 5_000
@@ -21,7 +20,7 @@ defmodule Shinkai.Sources.RTSP do
   def init(source) do
     Logger.info("[#{source.id}] Starting new rtsp source")
 
-    {:ok, pid} = RTSP.start_link(stream_uri: source.uri)
+    {:ok, pid} = RTSP.start_link(stream_uri: source.uri, transport: {:udp, 10000, 20000})
 
     if function_exported?(Process, :set_label, 1) do
       # credo:disable-for-next-line
@@ -32,7 +31,7 @@ defmodule Shinkai.Sources.RTSP do
       id: source.id,
       rtsp_pid: pid,
       tracks: %{},
-      packets_topic: packets_topic(source.id)
+      media_processor: nil
     }
 
     {:ok, state, {:continue, :connect}}
@@ -45,21 +44,15 @@ defmodule Shinkai.Sources.RTSP do
   def handle_info(:reconnect, state), do: do_connect(state)
 
   def handle_info({:rtsp, _pid, {id, sample_or_samples}}, state) do
-    :ok =
-      Phoenix.PubSub.broadcast(
-        Shinkai.PubSub,
-        state.packets_topic,
-        {:packet, to_packets(sample_or_samples, state.tracks[id].id)}
-      )
-
-    {:noreply, state}
+    media_processor = MediaProcessor.handle_sample(id, sample_or_samples, state.media_processor)
+    {:noreply, %{state | media_processor: media_processor}}
   end
 
   @impl true
   def handle_info({:rtsp, pid, :session_closed}, %{rtsp_pid: pid} = state) do
     Logger.error("[#{state.id}] rtsp client disconnected")
-    Phoenix.PubSub.broadcast!(Shinkai.PubSub, state_topic(state.id), :disconnected)
-    Sources.update_source_status(state.id, :failed)
+    Phoenix.PubSub.broadcast!(Shinkai.PubSub, Shinkai.Utils.state_topic(state.id), :disconnected)
+    update_status(state.id, :failed)
     Process.send_after(self(), :reconnect, @reconnect_timeout)
     {:noreply, state}
   end
@@ -72,21 +65,10 @@ defmodule Shinkai.Sources.RTSP do
 
   defp do_connect(state) do
     with {:ok, tracks} <- RTSP.connect(state.rtsp_pid, @timeout),
-         tracks <- build_tracks(tracks),
          :ok <- RTSP.play(state.rtsp_pid) do
-      codecs = tracks |> Map.values() |> Enum.map_join(", ", & &1.codec)
-      Logger.info("[#{state.id}] start reading from #{map_size(tracks)} tracks (#{codecs})")
-
       update_status(state, :streaming)
-
-      :ok =
-        Phoenix.PubSub.broadcast(
-          Shinkai.PubSub,
-          tracks_topic(state.id),
-          {:tracks, Map.values(tracks)}
-        )
-
-      {:noreply, %{state | tracks: tracks}}
+      media_processor = MediaProcessor.new(state.id, tracks)
+      {:noreply, %{state | media_processor: media_processor}}
     else
       {:error, reason} ->
         Logger.error("[#{state.id}] rtsp connection failed: #{inspect(reason)}")
@@ -96,28 +78,5 @@ defmodule Shinkai.Sources.RTSP do
     end
   end
 
-  defp build_tracks(tracks) do
-    tracks
-    |> Enum.with_index(1)
-    |> Map.new(fn {track, id} -> {track.control_path, Track.from_rtsp_track(id, track)} end)
-  end
-
-  defp to_packets(samples, track_id) when is_list(samples) do
-    Enum.map(samples, &packet_from_sample(track_id, &1))
-  end
-
-  defp to_packets(sample, track_id), do: packet_from_sample(track_id, sample)
-
-  defp packet_from_sample(track_id, {payload, pts, sync?, _timestamp}) do
-    Shinkai.Packet.new(payload,
-      track_id: track_id,
-      dts: pts,
-      pts: pts,
-      sync?: sync?
-    )
-  end
-
-  defp update_status(state, status) do
-    Sources.update_source_status(state.id, status)
-  end
+  defp update_status(state, status), do: Sources.update_source_status(state.id, status)
 end
