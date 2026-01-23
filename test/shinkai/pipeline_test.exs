@@ -3,6 +3,7 @@ defmodule Shinkai.PipelineTest do
 
   alias ExM3U8.Tags
   alias RTSP.FileServer
+  alias Shinkai.RTSP.Publisher
   alias Shinkai.Sources.Source
   alias Shinkai.Utils
 
@@ -41,8 +42,8 @@ defmodule Shinkai.PipelineTest do
         id = UUID.uuid4()
         Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(id))
 
-        publisher = Shinkai.RTSP.Publisher.new("rtsp://localhost:8554/#{id}", unquote(fixture))
-        Shinkai.RTSP.Publisher.publish(publisher)
+        Publisher.new("rtsp://localhost:8554/#{id}", unquote(fixture))
+        |> Publisher.publish()
 
         assert_receive {:hls, :done}, 5_000
 
@@ -152,7 +153,7 @@ defmodule Shinkai.PipelineTest do
              items: items
            } = multivariabt_playlist
 
-    assert length(items) == [audio?, video?] |> Enum.filter(& &1) |> Enum.count()
+    assert length(items) == Enum.count([audio?, video?], & &1)
 
     if audio? do
       assert %{type: :audio, group_id: "audio"} =

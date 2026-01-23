@@ -85,14 +85,7 @@ defmodule Shinkai.Sink.RTMP do
           :ok
 
         track ->
-          tags = Enum.map(packets, &packet_to_tag(track, &1))
-
-          for {pid, _} <- entries, {timestamp, data} <- tags do
-            case track.type do
-              :video -> ClientSession.send_video_data(pid, timestamp, data)
-              :audio -> ClientSession.send_audio_data(pid, timestamp, data)
-            end
-          end
+          dispatch_packets(entries, packets, track)
       end
     end)
 
@@ -110,6 +103,18 @@ defmodule Shinkai.Sink.RTMP do
     end)
 
     {:noreply, state}
+  end
+
+  defp dispatch_packets(entries, packets, track) do
+    tags = Enum.map(packets, &packet_to_tag(track, &1))
+
+    for {pid, _} <- entries, {timestamp, data} <- tags do
+      # credo:disable-for-next-line
+      case track.type do
+        :video -> ClientSession.send_video_data(pid, timestamp, data)
+        :audio -> ClientSession.send_audio_data(pid, timestamp, data)
+      end
+    end
   end
 
   defp packet_to_tag(track, packet) do

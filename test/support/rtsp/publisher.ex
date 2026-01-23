@@ -2,6 +2,7 @@ defmodule Shinkai.RTSP.Publisher do
   @moduledoc false
 
   alias ExMP4.Reader
+  alias Membrane.RTSP, as: MRTSP
   alias RTSP.RTP.Encoder
 
   @spec new(String.t(), String.t()) :: map()
@@ -15,7 +16,7 @@ defmodule Shinkai.RTSP.Publisher do
     tracks = Reader.tracks(state.reader)
     announce_tracks(state.rtsp, tracks)
     sockets = setup(state.rtsp, tracks)
-    {:ok, %{status: 200}} = Membrane.RTSP.record(state.rtsp)
+    {:ok, %{status: 200}} = MRTSP.record(state.rtsp)
 
     ctx =
       Map.new(tracks, fn track ->
@@ -77,11 +78,11 @@ defmodule Shinkai.RTSP.Publisher do
       {:ok, port} = :inet.port(rtp_socket)
 
       {:ok, %{status: 200} = resp} =
-        Membrane.RTSP.setup(rtsp, "track=#{track.id}", [
+        MRTSP.setup(rtsp, "track=#{track.id}", [
           {"Transport", "RTP/AVP;unicast;client_port=#{port}-#{port + 1};mode=record"}
         ])
 
-      {:ok, transport} = Membrane.RTSP.Response.get_header(resp, "Transport")
+      {:ok, transport} = MRTSP.Response.get_header(resp, "Transport")
 
       [_, rtp_port, _] = Regex.run(~r/server_port=(\d+)-(\d+)/, transport)
       :gen_udp.connect(rtp_socket, {127, 0, 0, 1}, String.to_integer(rtp_port))
