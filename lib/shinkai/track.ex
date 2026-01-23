@@ -3,7 +3,7 @@ defmodule Shinkai.Track do
   Module describing a media track.
   """
 
-  alias ExFLV.Tag.{AudioData, ExVideoData, VideoData}
+  alias ExFLV.Tag.{AudioData, ExAudioData, ExVideoData, VideoData}
   alias ExMP4.Box
   alias MediaCodecs.MPEG4
 
@@ -74,6 +74,20 @@ defmodule Shinkai.Track do
     |> Box.serialize()
     |> AudioData.AAC.new(:sequence_header)
     |> AudioData.new(:aac, 1, 3, :stereo)
+  end
+
+  def to_rtmp_tag(%{codec: :opus} = track) do
+    # priv_data is the channel count
+    # No support for more than 2 channels for now
+    dops = %Box.Dops{
+      output_channel_count: track.priv_data || 2,
+      pre_skip: 0,
+      input_sample_rate: 48000,
+      output_gain: 0,
+      channel_mapping_family: 0
+    }
+
+    %ExAudioData{codec_id: :opus, packet_type: :sequence_start, data: Box.serialize(dops)}
   end
 
   def to_rtmp_tag(%{codec: codec} = track) when codec in [:h265, :av1] do
