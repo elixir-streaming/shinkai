@@ -82,7 +82,7 @@ defmodule Shinkai.Track do
     dops = %Box.Dops{
       output_channel_count: track.priv_data || 2,
       pre_skip: 0,
-      input_sample_rate: 48000,
+      input_sample_rate: 48_000,
       output_gain: 0,
       channel_mapping_family: 0
     }
