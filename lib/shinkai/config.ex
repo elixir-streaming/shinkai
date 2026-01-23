@@ -16,7 +16,7 @@ defmodule Shinkai.Config do
       default: 1935,
       doc: "RTMP listening port",
       type_doc: "`t::socket.port_number/0`",
-      type_spec: quote do: :socket.port_number()
+      type_spec: quote(do: :socket.port_number())
     ]
   ]
 
@@ -31,7 +31,7 @@ defmodule Shinkai.Config do
       default: 8554,
       doc: "RTSP listening port",
       type_doc: "`t::socket.port_number/0`",
-      type_spec: quote do: :socket.port_number()
+      type_spec: quote(do: :socket.port_number())
     ]
   ]
 
@@ -46,7 +46,7 @@ defmodule Shinkai.Config do
       default: 8888,
       doc: "http port",
       type_doc: "`t::socket.port_number/0`",
-      type_spec: quote do: :socket.port_number()
+      type_spec: quote(do: :socket.port_number())
     ],
     certfile: [
       type: {:or, [:string, nil]},
