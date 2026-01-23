@@ -80,6 +80,15 @@ defmodule Shinkai.Sources.RTSP.MediaProcessor do
     end
   end
 
+  @spec close(t()) :: :ok
+  def close(state) do
+    Phoenix.PubSub.broadcast!(
+      Shinkai.PubSub,
+      Shinkai.Utils.state_topic(state.source_id),
+      :disconnected
+    )
+  end
+
   defp all_tracks_initialized?(tracks) do
     Enum.all?(tracks, fn
       %{type: :video, priv_data: nil} -> false

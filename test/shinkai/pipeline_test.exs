@@ -8,59 +8,81 @@ defmodule Shinkai.PipelineTest do
 
   @moduletag :tmp_dir
 
-  setup do
-    {:ok, server} =
-      FileServer.start_link(
-        port: 0,
-        files: [%{path: "/test", location: "test/fixtures/big_buck_avc_aac.mp4"}]
-      )
+  @fixtures [
+    "test/fixtures/big_buck_av1_opus.mp4",
+    "test/fixtures/big_buck_avc_aac.mp4"
+  ]
 
-    %{rtsp_server: server}
-  end
+  for fixture <- @fixtures do
+    describe "hls sink: #{fixture}" do
+      test "Stream from rtsp" do
+        rtsp_server = start_rtsp_server(rate_control: false)
 
-  describe "hls sink" do
-    test "Stream from rtsp", %{tmp_dir: _dir} do
-      rtsp_server = start_rtsp_server(rate_control: false)
-      source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(rtsp_server)}
-      Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
+        source = %Source{
+          id: UUID.uuid4(),
+          type: :rtsp,
+          uri: rtsp_uri(rtsp_server, unquote(fixture))
+        }
 
-      _pid = start_supervised!({Shinkai.Pipeline, source})
+        Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
 
-      assert_receive {:hls, :done}, 5_000
+        _pid = start_supervised!({Shinkai.Pipeline, source})
 
-      hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-      assert_hls(hls_path)
+        assert_receive {:hls, :done}, 5_000
 
-      File.rm_rf!(hls_path)
-    end
+        hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
 
-    test "Stream from rtmp" do
-      {:ok, rtmp_server} =
-        ExRTMP.Server.start(
-          port: 0,
-          handler: Shinkai.RTMP.Server.Handler,
-          handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
-        )
+        audio? = not String.contains?(unquote(fixture), "opus")
+        assert_hls(hls_path, audio?)
 
-      source = %Source{id: UUID.uuid4(), type: :rtmp, uri: rtmp_uri(rtmp_server, "live/test")}
-      Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
+        on_exit(fn -> File.rm_rf!(hls_path) end)
+      end
 
-      _pid = start_supervised!({Shinkai.Pipeline, source})
+      test "Stream from rtsp publish", %{tmp_dir: _dir} do
+        id = UUID.uuid4()
+        Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(id))
 
-      assert_receive {:hls, :done}, 5_000
+        publisher = Shinkai.RTSP.Publisher.new("rtsp://localhost:8554/#{id}", unquote(fixture))
+        Shinkai.RTSP.Publisher.publish(publisher)
 
-      hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-      assert_hls(hls_path)
+        assert_receive {:hls, :done}, 5_000
 
-      ExRTMP.Server.stop(rtmp_server)
-      File.rm_rf!(hls_path)
+        hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], id)
+        audio? = not String.contains?(unquote(fixture), "opus")
+        assert_hls(hls_path, audio?)
+
+        File.rm_rf!(hls_path)
+      end
+
+      test "Stream from rtmp" do
+        {:ok, rtmp_server} =
+          ExRTMP.Server.start(
+            port: 0,
+            handler: Shinkai.RTMP.Server.Handler,
+            handler_options: [fixture: unquote(fixture)]
+          )
+
+        source = %Source{id: UUID.uuid4(), type: :rtmp, uri: rtmp_uri(rtmp_server, "live/test")}
+        Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(source.id))
+
+        _pid = start_supervised!({Shinkai.Pipeline, source})
+
+        assert_receive {:hls, :done}, 5_000
+
+        hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
+        audio? = not String.contains?(unquote(fixture), "opus")
+        assert_hls(hls_path, audio?)
+
+        ExRTMP.Server.stop(rtmp_server)
+        File.rm_rf!(hls_path)
+      end
     end
   end
 
   describe "rtmp sink" do
     test "Stream from rtsp", %{tmp_dir: _dir} do
       server = start_rtsp_server()
-      source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server)}
+      source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server, "test")}
 
       {:ok, rtmp_server} = ExRTMP.Server.start(port: 0, handler: Shinkai.Sources.RTMP.Handler)
       start_source(source)
@@ -120,10 +142,15 @@ defmodule Shinkai.PipelineTest do
     _pid = start_supervised!({Shinkai.Pipeline, source})
   end
 
-  defp assert_hls(hls_path) do
+  defp assert_hls(hls_path, audio?, video? \\ true) do
     assert File.exists?(Path.join(hls_path, "master.m3u8"))
     assert File.exists?(Path.join(hls_path, "video.m3u8"))
-    assert File.exists?(Path.join(hls_path, "audio.m3u8"))
+
+    if audio? do
+      assert File.exists?(Path.join(hls_path, "audio.m3u8"))
+    else
+      refute File.exists?(Path.join(hls_path, "audio.m3u8"))
+    end
 
     assert {:ok, multivariabt_playlist} =
              hls_path
@@ -137,15 +164,26 @@ defmodule Shinkai.PipelineTest do
              items: items
            } = multivariabt_playlist
 
-    assert length(items) == 2
+    assert length(items) == [audio?, video?] |> Enum.filter(& &1) |> Enum.count()
 
-    assert %{type: :audio, group_id: "audio"} =
-             Enum.find(items, &is_struct(&1, ExM3U8.Tags.Media))
+    if audio? do
+      assert %{type: :audio, group_id: "audio"} =
+               Enum.find(items, &is_struct(&1, ExM3U8.Tags.Media))
+    end
 
-    assert %{audio: "audio", codecs: "avc1.42C00C,mp4a.40.2", resolution: {240, 136}} =
-             Enum.find(items, &is_struct(&1, ExM3U8.Tags.Stream))
+    # codesc "avc1.42C00C,mp4a.40.2"
+    if audio? do
+      assert %{audio: "audio", codecs: _codecs, resolution: {240, 136}} =
+               Enum.find(items, &is_struct(&1, ExM3U8.Tags.Stream))
+    else
+      assert %{audio: nil, codecs: _codecs, resolution: {240, 136}} =
+               Enum.find(items, &is_struct(&1, ExM3U8.Tags.Stream))
+    end
 
-    assert_media_playlist(hls_path, "audio", 3, 5)
+    if audio? do
+      assert_media_playlist(hls_path, "audio", 3, 5)
+    end
+
     assert_media_playlist(hls_path, "video", 2, 5)
   end
 
@@ -182,20 +220,21 @@ defmodule Shinkai.PipelineTest do
   end
 
   defp start_rtsp_server(other_options \\ []) do
-    default_options =
-      [
-        port: 0,
-        files: [%{path: "/test", location: "test/fixtures/big_buck_avc_aac.mp4"}],
-        rate_control: true
-      ]
-      |> Keyword.merge(other_options)
+    files =
+      @fixtures
+      |> Enum.with_index(1)
+      |> Enum.map(fn {fixture, idx} ->
+        %{path: "/test#{idx}", location: fixture}
+      end)
 
+    default_options = Keyword.merge([port: 0, files: files, rate_control: true], other_options)
     {:ok, pid} = FileServer.start_link(default_options)
     pid
   end
 
-  defp rtsp_uri(server) do
+  defp rtsp_uri(server, fixture) do
+    idx = Enum.find_index(@fixtures, &(&1 == fixture)) + 1
     {:ok, port} = FileServer.port_number(server)
-    "rtsp://127.0.0.1:#{port}/test"
+    "rtsp://127.0.0.1:#{port}/test#{idx}"
   end
 end

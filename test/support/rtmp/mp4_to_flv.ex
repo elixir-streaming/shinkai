@@ -45,6 +45,17 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     |> Tag.Serializer.serialize()
   end
 
+  defp flv_init_tag(%{media: :av1} = track) do
+    av1c = ExMP4.Box.serialize(track.priv_data)
+
+    Tag.Serializer.serialize(%Tag.ExVideoData{
+      codec_id: :av1,
+      packet_type: :sequence_start,
+      frame_type: :keyframe,
+      data: binary_part(av1c, 8, byte_size(av1c) - 8)
+    })
+  end
+
   defp flv_init_tag(%{media: :aac} = track) do
     [descriptor] = MediaCodecs.MPEG4.parse_descriptors(track.priv_data.es_descriptor)
 
@@ -52,6 +63,16 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     |> AAC.new(:sequence_header)
     |> Tag.AudioData.new(:aac, 3, 1, :stereo)
     |> Tag.Serializer.serialize()
+  end
+
+  defp flv_init_tag(%{media: :opus} = track) do
+    dops = ExMP4.Box.serialize(track.priv_data)
+
+    Tag.Serializer.serialize(%Tag.ExAudioData{
+      codec_id: :opus,
+      packet_type: :sequence_start,
+      data: binary_part(dops, 8, byte_size(dops) - 8)
+    })
   end
 
   defp video_sample_tag(sample, timescale) do

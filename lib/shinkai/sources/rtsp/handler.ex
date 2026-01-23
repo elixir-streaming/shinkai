@@ -28,6 +28,11 @@ defmodule Shinkai.Sources.RTSP.Handler do
     MediaProcessor.handle_sample(control_path, sample, state)
   end
 
+  @impl true
+  def handle_closed_connection(state) do
+    MediaProcessor.close(state)
+  end
+
   defp source_id("/"), do: {:error, :missing_path}
   defp source_id(<<"/", path::binary>>), do: {:ok, String.replace(path, "/", "-")}
 end
