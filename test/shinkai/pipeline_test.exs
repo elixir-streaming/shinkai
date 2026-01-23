@@ -31,7 +31,6 @@ defmodule Shinkai.PipelineTest do
         assert_receive {:hls, :done}, 5_000
 
         hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-
         audio? = not String.contains?(unquote(fixture), "opus")
         assert_hls(hls_path, audio?)
 
@@ -79,60 +78,78 @@ defmodule Shinkai.PipelineTest do
     end
   end
 
-  describe "rtmp sink" do
-    test "Stream from rtsp", %{tmp_dir: _dir} do
-      server = start_rtsp_server()
-      source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server, "test")}
+  for fixture <- @fixtures do
+    describe "rtmp sink: #{fixture}" do
+      test "Stream from rtsp" do
+        server = start_rtsp_server()
+        source = %Source{id: UUID.uuid4(), type: :rtsp, uri: rtsp_uri(server, unquote(fixture))}
 
-      {:ok, rtmp_server} = ExRTMP.Server.start(port: 0, handler: Shinkai.Sources.RTMP.Handler)
-      start_source(source)
+        {:ok, rtmp_server} = ExRTMP.Server.start(port: 0, handler: Shinkai.Sources.RTMP.Handler)
+        start_source(source)
 
-      # Wait for the RTMP sink to receive tracks
-      Process.sleep(150)
+        # Wait for the RTMP sink to receive tracks
+        Process.sleep(150)
 
-      {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server), stream_key: source.id)
-      assert :ok = ExRTMP.Client.connect(pid)
-      assert :ok = ExRTMP.Client.play(pid)
+        {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server), stream_key: source.id)
+        assert :ok = ExRTMP.Client.connect(pid)
+        assert :ok = ExRTMP.Client.play(pid)
 
-      assert_rtmp_receive(pid)
+        assert_rtmp_receive(pid, unquote(fixture))
 
-      ExRTMP.Server.stop(rtmp_server)
-    end
+        ExRTMP.Server.stop(rtmp_server)
+      end
 
-    test "Stream from rtmp" do
-      {:ok, rtmp_server} =
-        ExRTMP.Server.start(
-          port: 0,
-          handler: Shinkai.RTMP.Server.Handler,
-          handler_options: [fixture: "test/fixtures/big_buck_avc_aac.mp4"]
-        )
+      test "Stream from rtmp" do
+        {:ok, rtmp_server} =
+          ExRTMP.Server.start(
+            port: 0,
+            handler: Shinkai.RTMP.Server.Handler,
+            handler_options: [fixture: unquote(fixture)]
+          )
 
-      id = UUID.uuid4()
+        id = UUID.uuid4()
 
-      source = %Source{id: "live-#{id}", type: :rtmp, uri: rtmp_uri(rtmp_server, "live/#{id}")}
+        source = %Source{id: "live-#{id}", type: :rtmp, uri: rtmp_uri(rtmp_server, "live/#{id}")}
+        start_source(source)
 
-      _pid = start_supervised!({Shinkai.Pipeline, source})
+        # _pid = start_supervised!({Shinkai.Pipeline, source})
 
-      {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server, "live"), stream_key: id)
-      assert :ok = ExRTMP.Client.connect(pid)
-      assert :ok = ExRTMP.Client.play(pid)
+        {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server, "live"), stream_key: id)
+        assert :ok = ExRTMP.Client.connect(pid)
+        assert :ok = ExRTMP.Client.play(pid)
 
-      assert_rtmp_receive(pid)
+        assert_rtmp_receive(pid, unquote(fixture))
 
-      ExRTMP.Server.stop(rtmp_server)
-    end
+        ExRTMP.Server.stop(rtmp_server)
+      end
 
-    defp assert_rtmp_receive(pid) do
-      assert_receive {:video, ^pid, {:codec, :h264, _dcr}}, 1000
-      assert_receive {:audio, ^pid, {:codec, :aac, _}}, 1000
+      defp assert_rtmp_receive(pid, fixture) do
+        {video_codec, audio_codec} =
+          case fixture do
+            "test/fixtures/big_buck_avc_aac.mp4" -> {:h264, :aac}
+            _ -> {:av1, nil}
+          end
 
-      for _i <- 1..20 do
-        assert_receive {:video, ^pid, {:sample, payload, _dts, _pts, keyframe?}}, 1000
-        assert_receive {:audio, ^pid, {:sample, data, _dts}}, 1000
+        if video_codec do
+          assert_receive {:video, ^pid, {:codec, ^video_codec, _dcr}}, 1000
+        end
 
-        assert is_list(payload)
-        assert is_binary(data)
-        assert is_boolean(keyframe?)
+        if audio_codec do
+          assert_receive {:audio, ^pid, {:codec, ^audio_codec, _}}, 1000
+        end
+
+        for _i <- 1..20 do
+          if video_codec do
+            assert_receive {:video, ^pid, {:sample, payload, _dts, _pts, keyframe?}}, 1000
+            assert is_list(payload) or is_binary(payload)
+            assert is_boolean(keyframe?)
+          end
+
+          if audio_codec do
+            assert_receive {:audio, ^pid, {:sample, data, _dts}}, 1000
+            assert is_binary(data)
+          end
+        end
       end
     end
   end

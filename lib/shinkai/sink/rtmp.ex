@@ -79,14 +79,20 @@ defmodule Shinkai.Sink.RTMP do
   def handle_info({:packet, packets}, state) do
     Registry.dispatch(Sink.Registry, {:rtmp, state.source_id}, fn entries ->
       packets = List.wrap(packets)
-      track = state.tracks[hd(packets).track_id]
-      tags = Enum.map(packets, &packet_to_tag(track, &1))
 
-      for {pid, _} <- entries, {timestamp, data} <- tags do
-        case track.type do
-          :video -> ClientSession.send_video_data(pid, timestamp, data)
-          :audio -> ClientSession.send_audio_data(pid, timestamp, data)
-        end
+      case state.tracks[hd(packets).track_id] do
+        nil ->
+          :ok
+
+        track ->
+          tags = Enum.map(packets, &packet_to_tag(track, &1))
+
+          for {pid, _} <- entries, {timestamp, data} <- tags do
+            case track.type do
+              :video -> ClientSession.send_video_data(pid, timestamp, data)
+              :audio -> ClientSession.send_audio_data(pid, timestamp, data)
+            end
+          end
       end
     end)
 
