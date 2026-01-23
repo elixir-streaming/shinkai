@@ -14,6 +14,11 @@ defmodule Shinkai.PipelineTest do
     "test/fixtures/big_buck_avc_aac.mp4"
   ]
 
+  setup do
+    {:ok, rtsp_server} = RTSP.Server.start_link(port: 0, handler: Shinkai.Sources.RTSP.Handler)
+    {:ok, rtsp_server: rtsp_server}
+  end
+
   for fixture <- @fixtures do
     describe "hls sink: #{fixture}" do
       test "Stream from rtsp" do
@@ -38,11 +43,14 @@ defmodule Shinkai.PipelineTest do
         on_exit(fn -> File.rm_rf!(hls_path) end)
       end
 
-      test "Stream from rtsp publish", %{tmp_dir: _dir} do
+      test "Stream from rtsp publish", %{rtsp_server: server} do
         id = UUID.uuid4()
         Phoenix.PubSub.subscribe(Shinkai.PubSub, Utils.sink_topic(id))
 
-        Publisher.new("rtsp://localhost:8554/#{id}", unquote(fixture))
+        {:ok, port} = RTSP.Server.port_number(server)
+
+        "rtsp://localhost:#{port}/#{id}"
+        |> Publisher.new(unquote(fixture))
         |> Publisher.publish()
 
         assert_receive {:hls, :done}, 5_000

@@ -6,4 +6,6 @@ config :shinkai, :server, enabled: false
 
 config :shinkai, :rtmp, port: 0
 
+config :shinkai, :rtsp, enabled: false
+
 config :shinkai, :hls, storage_dir: "tmp"

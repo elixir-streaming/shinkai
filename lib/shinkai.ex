@@ -15,10 +15,7 @@ defmodule Shinkai do
 
     To configure the http server responsible for serving HLS streams.
 
-    * `enabled` - Enable or disable the HTTP server.
-    * `port` - Port number for the HTTP server.
-    * `certfile` - Path to the SSL certificate file (optional).
-    * `keyfile` - Path to the SSL key file (optional).
+    #{NimbleOptions.docs(Shinkai.Config.server_schema())}
 
     ```elixir
     config :shinkai, :server,
@@ -40,12 +37,7 @@ defmodule Shinkai do
 
     To configure HLS streaming options.
 
-    * `storage_dir` - Directory to store HLS segments.
-    * `max_segments` - Maximum number of segments to keep.
-    * `segment_duration` - Segment duration in milliseconds.
-    * `part_duration` - Part duration in milliseconds.
-    * `segment_type` - Type of segments to generate, either `fmp4`,
-    `mpeg_ts`, or `low_latency`.
+    #{NimbleOptions.docs(Shinkai.Config.hls_schema())}
 
     ```elixir
     config :shinkai, :hls,
@@ -66,8 +58,8 @@ defmodule Shinkai do
   ### RTMP
 
     To configure the RTMP server.
-    * `enabled` - Enable or disable the RTMP server.
-    * `port` - Port number for the RTMP server.
+
+    #{NimbleOptions.docs(Shinkai.Config.rtmp_schema())}
 
     ```elixir
     config :shinkai, :rtmp,
@@ -79,6 +71,24 @@ defmodule Shinkai do
     rtmp:
       enabled: true          # Enable or disable the RTMP server (default: true)
       port: 1935             # Port number for the RTMP server (default: 1935)
+    ```
+
+  ### RTSP
+
+    To configure the RTSP server.
+
+    #{NimbleOptions.docs(Shinkai.Config.rtsp_schema())}
+
+    ```elixir
+    config :shinkai, :rtsp,
+      enabled: true,
+      port: 8554
+    ```
+
+    ```yaml
+    rtsp:
+      enabled: true          # Enable or disable the RTSP server (default: true)
+      port: 8554             # Port number for the RTSP server (default: 8554)
     ```
 
   ### Paths

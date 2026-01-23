@@ -15,12 +15,12 @@ defmodule Shinkai.ConfigTest do
 
       config = Config.validate(user_config)
 
-      assert Keyword.keys(config) == [:rtmp, :server, :hls]
+      assert Keyword.keys(config) |> Enum.sort() == [:hls, :rtmp, :rtsp, :server]
 
       assert %{
                segment_type: :low_latency,
                segment_duration: 2000,
-               part_duration: 500,
+               part_duration: 300,
                max_segments: 10,
                storage_dir: "/var/shinkai/hls"
              } == Map.new(config[:hls])
@@ -36,13 +36,13 @@ defmodule Shinkai.ConfigTest do
     test "raise on invalid values" do
       user_config = %{"hls" => %{"segment_type" => "unknown_type"}}
 
-      assert_raise ArgumentError, ~r/Invalid HLS configuration/, fn ->
+      assert_raise NimbleOptions.ValidationError, ~r/invalid value for :segment_type/, fn ->
         Config.validate(user_config)
       end
 
       user_config = %{"hls" => %{"unknown_key" => 1}}
 
-      assert_raise ArgumentError, ~r/Invalid HLS configuration/, fn ->
+      assert_raise ArgumentError, ~r/not an already existing atom/, fn ->
         Config.validate(user_config)
       end
 
@@ -54,7 +54,7 @@ defmodule Shinkai.ConfigTest do
 
       user_config = %{"hls" => "not_a_map"}
 
-      assert_raise ArgumentError, ~r/Invalid HLS configuration format/, fn ->
+      assert_raise ArgumentError, ~r/Expected a map or keyword list received/, fn ->
         Config.validate(user_config)
       end
     end
