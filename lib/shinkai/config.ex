@@ -30,11 +30,13 @@ defmodule Shinkai.Config do
       doc: "http port"
     ],
     certfile: [
-      type: :string,
+      type: {:or, [:string, nil]},
+      default: nil,
       doc: "https certificate"
     ],
     keyfile: [
-      type: :string,
+      type: {:or, [:string, nil]},
+      default: nil,
       doc: "https private key certificate"
     ]
   ]
@@ -150,20 +152,20 @@ defmodule Shinkai.Config do
     parse_and_validate(rest, [{:rtmp, rtmp_config} | acc])
   end
 
-  defp do_parse_and_validate(config, schame) do
+  defp do_parse_and_validate(config, schema) do
     config = config || []
 
     cond do
       Keyword.keyword?(config) ->
-        NimbleOptions.validate!(config, schame)
+        NimbleOptions.validate!(config, schema)
 
       is_map(config) ->
         config
         |> Keyword.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
-        |> NimbleOptions.validate!(schame)
+        |> NimbleOptions.validate!(schema)
 
       true ->
-        raise "Expected a map or keyword list received: #{inspect(config)}"
+        raise ArgumentError, "Expected a map or keyword list received: #{inspect(config)}"
     end
   end
 
