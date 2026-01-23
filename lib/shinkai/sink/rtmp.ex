@@ -11,12 +11,12 @@ defmodule Shinkai.Sink.RTMP do
 
   import Shinkai.Utils
 
-  alias ExFLV.Tag.{AudioData, ExVideoData, Serializer, VideoData}
+  alias ExFLV.Tag.{AudioData, ExAudioData, ExVideoData, Serializer, VideoData}
   alias ExRTMP.Server.ClientSession
   alias Phoenix.PubSub
 
   @timescale 1000
-  @supported_codesc [:h264, :h265, :av1, :aac, :pcma, :pcmu]
+  @supported_codesc [:h264, :h265, :av1, :aac, :pcma, :pcmu, :opus]
 
   def start_link(opts) do
     name = {:via, Registry, {Source.Registry, {:rtmp_sink, opts[:id]}}}
@@ -34,7 +34,7 @@ defmodule Shinkai.Sink.RTMP do
     :ok = PubSub.subscribe(Shinkai.PubSub, tracks_topic(id))
     :ok = PubSub.subscribe(Shinkai.PubSub, state_topic(id))
 
-    {:ok, %{source_id: id, tracks: %{}, init_tags: [], packet_topic: packets_topic(id)}}
+    {:ok, %{source_id: id, tracks: %{}, init_tags: []}}
   end
 
   @impl true
@@ -69,7 +69,7 @@ defmodule Shinkai.Sink.RTMP do
       end)
 
     if supported_tracks != [] do
-      :ok = PubSub.subscribe(Shinkai.PubSub, state.packet_topic)
+      :ok = PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
     end
 
     {:noreply, %{state | tracks: Map.new(supported_tracks, &{&1.id, &1}), init_tags: init_tags}}
@@ -97,19 +97,28 @@ defmodule Shinkai.Sink.RTMP do
     Logger.warning("[#{state.source_id}] [RTMP Sink] source disconnected")
 
     Registry.dispatch(Sink.Registry, {:rtmp, state.source_id}, fn entries ->
-      for {pid, _} <- entries do
-        send(pid, :exit)
-      end
+      for {pid, _} <- entries, do: send(pid, :exit)
     end)
 
     {:noreply, state}
   end
 
   defp dispatch_packets(entries, packets, track) do
-    tags = Enum.map(packets, &packet_to_tag(track, &1))
+    tags =
+      Enum.map(packets, fn packet ->
+        dts = div(packet.dts * @timescale, track.timescale)
+        cts = div((packet.pts - packet.dts) * @timescale, track.timescale)
+
+        tag =
+          track.codec
+          |> packet_to_tag(packet, cts)
+          |> Serializer.serialize()
+          |> IO.iodata_to_binary()
+
+        {dts, tag}
+      end)
 
     for {pid, _} <- entries, {timestamp, data} <- tags do
-      # credo:disable-for-next-line
       case track.type do
         :video -> ClientSession.send_video_data(pid, timestamp, data)
         :audio -> ClientSession.send_audio_data(pid, timestamp, data)
@@ -117,38 +126,36 @@ defmodule Shinkai.Sink.RTMP do
     end
   end
 
-  defp packet_to_tag(track, packet) do
-    dts = div(packet.dts * @timescale, track.timescale)
-    cts = div((packet.pts - packet.dts) * @timescale, track.timescale)
+  defp packet_to_tag(:h264, packet, cts) do
+    maybe_prefix_payload(:h264, packet.data)
+    |> VideoData.AVC.new(:nalu, cts)
+    |> VideoData.new(:h264, if(packet.sync?, do: :keyframe, else: :interframe))
+  end
 
-    tag =
-      case track.codec do
-        :h264 ->
-          maybe_prefix_payload(:h264, packet.data)
-          |> VideoData.AVC.new(:nalu, cts)
-          |> VideoData.new(:h264, if(packet.sync?, do: :keyframe, else: :interframe))
+  defp packet_to_tag(:aac, packet, _cts) do
+    packet.data
+    |> AudioData.AAC.new(:raw)
+    |> AudioData.new(:aac, 1, 3, :stereo)
+  end
 
-        :aac ->
-          packet.data
-          |> AudioData.AAC.new(:raw)
-          |> AudioData.new(:aac, 1, 3, :stereo)
+  defp packet_to_tag(:opus, packet, _cts) do
+    %ExAudioData{codec_id: :opus, packet_type: :coded_frames, data: packet.data}
+  end
 
-        codec when codec in [:h265, :av1] ->
-          packet_type = if codec == :h265 and cts != 0, do: :coded_frames, else: :coded_frames_x
+  defp packet_to_tag(codec, packet, cts) when codec in [:av1, :h265] do
+    packet_type = if codec == :h265 and cts != 0, do: :coded_frames, else: :coded_frames_x
 
-          %ExVideoData{
-            codec_id: codec,
-            frame_type: if(packet.sync?, do: :keyframe, else: :interframe),
-            packet_type: packet_type,
-            composition_time_offset: cts,
-            data: maybe_prefix_payload(codec, packet.data)
-          }
+    %ExVideoData{
+      codec_id: codec,
+      frame_type: if(packet.sync?, do: :keyframe, else: :interframe),
+      packet_type: packet_type,
+      composition_time_offset: cts,
+      data: maybe_prefix_payload(codec, packet.data)
+    }
+  end
 
-        codec ->
-          AudioData.new(packet.data, codec, 3, 1, :stereo)
-      end
-
-    {dts, Serializer.serialize(tag) |> IO.iodata_to_binary()}
+  defp packet_to_tag(codec, packet, _cts) do
+    AudioData.new(packet.data, codec, 3, 1, :stereo)
   end
 
   defp maybe_prefix_payload(codec, payload) when codec in [:h264, :h265] do

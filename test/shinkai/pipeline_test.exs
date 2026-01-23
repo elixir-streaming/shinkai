@@ -188,7 +188,7 @@ defmodule Shinkai.PipelineTest do
     {video_codec, audio_codec} =
       case fixture do
         "test/fixtures/big_buck_avc_aac.mp4" -> {:h264, :aac}
-        _ -> {:av1, nil}
+        _ -> {:av1, :opus}
       end
 
     if video_codec do
