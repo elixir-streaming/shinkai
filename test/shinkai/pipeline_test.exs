@@ -122,35 +122,6 @@ defmodule Shinkai.PipelineTest do
 
         ExRTMP.Server.stop(rtmp_server)
       end
-
-      defp assert_rtmp_receive(pid, fixture) do
-        {video_codec, audio_codec} =
-          case fixture do
-            "test/fixtures/big_buck_avc_aac.mp4" -> {:h264, :aac}
-            _ -> {:av1, nil}
-          end
-
-        if video_codec do
-          assert_receive {:video, ^pid, {:codec, ^video_codec, _dcr}}, 1000
-        end
-
-        if audio_codec do
-          assert_receive {:audio, ^pid, {:codec, ^audio_codec, _}}, 1000
-        end
-
-        for _i <- 1..20 do
-          if video_codec do
-            assert_receive {:video, ^pid, {:sample, payload, _dts, _pts, keyframe?}}, 1000
-            assert is_list(payload) or is_binary(payload)
-            assert is_boolean(keyframe?)
-          end
-
-          if audio_codec do
-            assert_receive {:audio, ^pid, {:sample, data, _dts}}, 1000
-            assert is_binary(data)
-          end
-        end
-      end
     end
   end
 
@@ -202,6 +173,35 @@ defmodule Shinkai.PipelineTest do
     end
 
     assert_media_playlist(hls_path, "video", 2, 5)
+  end
+
+  defp assert_rtmp_receive(pid, fixture) do
+    {video_codec, audio_codec} =
+      case fixture do
+        "test/fixtures/big_buck_avc_aac.mp4" -> {:h264, :aac}
+        _ -> {:av1, nil}
+      end
+
+    if video_codec do
+      assert_receive {:video, ^pid, {:codec, ^video_codec, _dcr}}, 1000
+    end
+
+    if audio_codec do
+      assert_receive {:audio, ^pid, {:codec, ^audio_codec, _}}, 1000
+    end
+
+    for _i <- 1..20 do
+      if video_codec do
+        assert_receive {:video, ^pid, {:sample, payload, _dts, _pts, keyframe?}}, 1000
+        assert is_list(payload) or is_binary(payload)
+        assert is_boolean(keyframe?)
+      end
+
+      if audio_codec do
+        assert_receive {:audio, ^pid, {:sample, data, _dts}}, 1000
+        assert is_binary(data)
+      end
+    end
   end
 
   defp rtmp_uri(server, path \\ "") do
