@@ -3,7 +3,7 @@ defmodule Shinkai.Config do
 
   use GenServer
 
-  @top_level_keys [:rtmp, :server, :hls]
+  @top_level_keys [:rtmp, :server, :hls, :rtsp]
 
   @rtmp_schema [
     enabled: [
@@ -14,7 +14,24 @@ defmodule Shinkai.Config do
     port: [
       type: {:in, 0..(2 ** 16 - 1)},
       default: 1935,
-      doc: "RTMP listening port"
+      doc: "RTMP listening port",
+      type_doc: "`t::socket.port_number/0`",
+      type_spec: quote do: :socket.port_number()
+    ]
+  ]
+
+  @rtsp_schema [
+    enabled: [
+      type: :boolean,
+      default: true,
+      doc: "Enable or disable rtsp"
+    ],
+    port: [
+      type: {:in, 0..(2 ** 16 - 1)},
+      default: 8554,
+      doc: "RTSP listening port",
+      type_doc: "`t::socket.port_number/0`",
+      type_spec: quote do: :socket.port_number()
     ]
   ]
 
@@ -27,7 +44,9 @@ defmodule Shinkai.Config do
     port: [
       type: {:in, 0..(2 ** 16 - 1)},
       default: 8888,
-      doc: "http port"
+      doc: "http port",
+      type_doc: "`t::socket.port_number/0`",
+      type_spec: quote do: :socket.port_number()
     ],
     certfile: [
       type: {:or, [:string, nil]},
@@ -44,7 +63,8 @@ defmodule Shinkai.Config do
   @hls_schema [
     storage_dir: [
       type: :string,
-      default: "/tmp/shinkai/hls"
+      default: "/tmp/shinkai/hls",
+      doc: "Directory to store HLS segments"
     ],
     max_segments: [
       type: :non_neg_integer,
@@ -53,17 +73,36 @@ defmodule Shinkai.Config do
     ],
     segment_duration: [
       type: :non_neg_integer,
-      default: 2000
+      default: 2000,
+      doc: "Segment duration in milliseconds"
     ],
     part_duration: [
       type: :non_neg_integer,
-      default: 300
+      default: 300,
+      doc: "Part duration in milliseconds for low-latency HLS"
     ],
     segment_type: [
       type: {:custom, __MODULE__, :validate_hls_segment_type, []},
-      default: :fmp4
+      default: :fmp4,
+      doc: "Type of segments to generate, either `:fmp4`, `:mpeg_ts` or `:low_latency`"
     ]
   ]
+
+  @doc false
+  @spec server_schema() :: keyword()
+  def server_schema, do: @server_schema
+
+  @doc false
+  @spec rtmp_schema() :: keyword()
+  def rtmp_schema, do: @rtmp_schema
+
+  @doc false
+  @spec hls_schema() :: keyword()
+  def hls_schema, do: @hls_schema
+
+  @doc false
+  @spec rtsp_schema() :: keyword()
+  def rtsp_schema, do: @rtsp_schema
 
   def start_link(config) do
     GenServer.start_link(__MODULE__, config, name: __MODULE__)
@@ -88,10 +127,15 @@ defmodule Shinkai.Config do
 
     app_configs = Enum.map(@top_level_keys, &{&1, Application.get_env(:shinkai, &1, [])})
 
-    Enum.map(@top_level_keys, fn key ->
-      []
-      |> Keyword.merge(app_configs[key])
-      |> Keyword.merge(user_config[key])
+    app_configs =
+      @top_level_keys
+      |> Enum.map(&{&1, []})
+      |> Keyword.merge(app_configs)
+      |> parse_and_validate()
+
+    Enum.map(app_configs, fn {key, config} ->
+      config
+      |> Keyword.merge(user_config[key] || [])
       |> then(&{key, &1})
     end)
   end
@@ -120,9 +164,7 @@ defmodule Shinkai.Config do
 
     case Map.keys(config) -- keys do
       [] ->
-        @top_level_keys
-        |> Enum.map(&{&1, []})
-        |> Keyword.merge(Enum.map(config, fn {key, value} -> {String.to_atom(key), value} end))
+        Enum.map(config, fn {key, value} -> {String.to_atom(key), value} end)
 
       invalid_keys ->
         raise ArgumentError, """
@@ -137,19 +179,16 @@ defmodule Shinkai.Config do
 
   defp parse_and_validate([], acc), do: acc
 
-  defp parse_and_validate([{:hls, hls_config} | rest], acc) do
-    hls_config = do_parse_and_validate(hls_config, @hls_schema)
-    parse_and_validate(rest, [{:hls, hls_config} | acc])
-  end
+  defp parse_and_validate([{key, config} | rest], acc) do
+    config =
+      case key do
+        :hls -> do_parse_and_validate(config, @hls_schema)
+        :server -> do_parse_and_validate(config, @server_schema)
+        :rtmp -> do_parse_and_validate(config, @rtmp_schema)
+        :rtsp -> do_parse_and_validate(config, @rtsp_schema)
+      end
 
-  defp parse_and_validate([{:server, server_config} | rest], acc) do
-    server_config = do_parse_and_validate(server_config, @server_schema)
-    parse_and_validate(rest, [{:server, server_config} | acc])
-  end
-
-  defp parse_and_validate([{:rtmp, rtmp_config} | rest], acc) do
-    rtmp_config = do_parse_and_validate(rtmp_config, @rtmp_schema)
-    parse_and_validate(rest, [{:rtmp, rtmp_config} | acc])
+    parse_and_validate(rest, [{key, config} | acc])
   end
 
   defp do_parse_and_validate(config, schema) do

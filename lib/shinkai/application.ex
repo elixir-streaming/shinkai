@@ -16,13 +16,19 @@ defmodule Shinkai.Application do
       {Sources.PublishManager, []},
       {Registry, name: Sink.Registry, keys: :duplicate},
       {Registry, name: Source.Registry, keys: :unique},
-      {Task, fn -> Sources.start_all() end},
-      {RTSP.Server, handler: Sources.RTSP.Handler, port: 8554}
+      {Task, fn -> Sources.start_all() end}
     ]
 
     children =
       if config[:rtmp][:enabled] do
         children ++ [{ExRTMP.Server, handler: Sources.RTMP.Handler, port: config[:rtmp][:port]}]
+      else
+        children
+      end
+
+    children =
+      if config[:rtsp][:enabled] do
+        children ++ [{RTSP.Server, handler: Sources.RTSP.Handler, port: config[:rtsp][:port]}]
       else
         children
       end

@@ -15,7 +15,7 @@ defmodule Shinkai.ConfigTest do
 
       config = Config.validate(user_config)
 
-      assert Keyword.keys(config) == [:rtmp, :server, :hls]
+      assert Keyword.keys(config) |> Enum.sort() == [:hls, :rtmp, :rtsp, :server]
 
       assert %{
                segment_type: :low_latency,
@@ -26,7 +26,7 @@ defmodule Shinkai.ConfigTest do
              } == Map.new(config[:hls])
 
       assert %{
-               enabled: true,
+               enabled: false,
                port: 8888,
                certfile: nil,
                keyfile: nil
