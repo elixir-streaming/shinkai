@@ -25,7 +25,7 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     |> Stream.map(&Reader.read_sample(reader, &1))
     |> Enum.each(fn sample ->
       if sample.track_id == video_track.id do
-        {dts, tag} = video_sample_tag(sample, video_track.timescale)
+        {dts, tag} = video_sample_tag(sample, video_track)
         ClientSession.send_video_data(rtmp_client, dts, tag)
       else
         {dts, tag} = audio_sample_tag(sample, audio_track.timescale)
@@ -45,6 +45,17 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     |> Tag.Serializer.serialize()
   end
 
+  defp flv_init_tag(%{media: :av1} = track) do
+    av1c = ExMP4.Box.serialize(track.priv_data)
+
+    Tag.Serializer.serialize(%Tag.ExVideoData{
+      codec_id: :av1,
+      packet_type: :sequence_start,
+      frame_type: :keyframe,
+      data: binary_part(av1c, 8, byte_size(av1c) - 8)
+    })
+  end
+
   defp flv_init_tag(%{media: :aac} = track) do
     [descriptor] = MediaCodecs.MPEG4.parse_descriptors(track.priv_data.es_descriptor)
 
@@ -54,9 +65,34 @@ defmodule Shinkai.RTMP.Server.Mp4ToFlv do
     |> Tag.Serializer.serialize()
   end
 
-  defp video_sample_tag(sample, timescale) do
-    dts = ExMP4.Helper.timescalify(sample.dts, timescale, :millisecond)
-    pts = ExMP4.Helper.timescalify(sample.pts, timescale, :millisecond)
+  defp flv_init_tag(%{media: :opus} = track) do
+    dops = ExMP4.Box.serialize(track.priv_data)
+
+    Tag.Serializer.serialize(%Tag.ExAudioData{
+      codec_id: :opus,
+      packet_type: :sequence_start,
+      data: binary_part(dops, 8, byte_size(dops) - 8)
+    })
+  end
+
+  defp video_sample_tag(sample, %{media: codec} = track) when codec in [:h265, :av1] do
+    dts = ExMP4.Helper.timescalify(sample.dts, track.timescale, :millisecond)
+    pts = ExMP4.Helper.timescalify(sample.pts, track.timescale, :millisecond)
+
+    sample =
+      Tag.Serializer.serialize(%Tag.ExVideoData{
+        codec_id: codec,
+        composition_time_offset: pts - dts,
+        packet_type: :coded_frames,
+        frame_type: if(sample.sync?, do: :keyframe, else: :interframe)
+      })
+
+    {dts, sample}
+  end
+
+  defp video_sample_tag(sample, track) do
+    dts = ExMP4.Helper.timescalify(sample.dts, track.timescale, :millisecond)
+    pts = ExMP4.Helper.timescalify(sample.pts, track.timescale, :millisecond)
 
     sample =
       sample.payload

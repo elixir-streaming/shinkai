@@ -31,7 +31,7 @@ defmodule Shinkai.Sources.RTSPTest do
                id: 1,
                type: :video,
                codec: :h264,
-               timescale: 15_360,
+               timescale: 90_000,
                priv_data:
                  {<<103, 66, 192, 12, 217, 3, 196, 254, 95, 252, 2, 32, 2, 28, 64, 0, 0, 3, 0, 64,
                     0, 0, 15, 3, 197, 10, 146>>, [<<104, 203, 131, 203, 32>>]}

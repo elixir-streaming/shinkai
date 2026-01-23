@@ -42,9 +42,12 @@ defmodule Shinkai.Sink.Hls do
     File.rm_rf!(hls_config[:storage_dir])
 
     :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, tracks_topic(id))
+    :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, packets_topic(id))
     :ok = Phoenix.PubSub.subscribe(Shinkai.PubSub, state_topic(id))
 
     {:ok, _} = RequestHolder.start_link(:"request_holder_#{id}")
+
+    Process.flag(:trap_exit, true)
 
     {:ok,
      %{
@@ -71,6 +74,8 @@ defmodule Shinkai.Sink.Hls do
       )
     end
 
+    Logger.info("[#{state.source_id}] [hls] start muxing")
+
     audio_track = Enum.find(hls_tracks, fn t -> t.type == :audio end)
     video_track = Enum.find(hls_tracks, fn t -> t.type == :video end)
 
@@ -89,7 +94,10 @@ defmodule Shinkai.Sink.Hls do
       end
 
     buffer? = length(hls_tracks) > 1 and Enum.any?(hls_tracks, &(&1.type == :video))
-    :ok = PubSub.subscribe(Shinkai.PubSub, packets_topic(state.source_id))
+
+    if hls_tracks == [] do
+      :ok = PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
+    end
 
     {:noreply,
      %{
@@ -100,30 +108,45 @@ defmodule Shinkai.Sink.Hls do
      }}
   end
 
-  def handle_info({:packet, packets}, state) when is_list(packets) do
-    {:noreply, Enum.reduce(packets, state, &do_handle_packet/2)}
+  @impl true
+  def handle_info({:packet, %Shinkai.Packet{} = packet}, state) do
+    {:noreply, do_handle_packet(packet, state)}
   end
 
-  @impl true
-  def handle_info({:packet, packet}, state) do
-    {:noreply, do_handle_packet(packet, state)}
+  def handle_info({:packet, packets}, state) do
+    {:noreply, Enum.reduce(packets, state, &do_handle_packet/2)}
   end
 
   @impl true
   def handle_info(:disconnected, state) do
     :ok = Writer.close(state.writer)
-    :ok = PubSub.unsubscribe(Shinkai.PubSub, packets_topic(state.source_id))
     :ok = PubSub.local_broadcast(Shinkai.PubSub, sink_topic(state.source_id), {:hls, :done})
 
     {:noreply,
      %{state | writer: Writer.new!(state.config), last_sample: %{}, packets: [], buffer?: false}}
   end
 
-  defp do_handle_packet(%{track_id: id}, state) when not is_map_key(state.tracks, id) do
-    state
+  defp do_handle_packet(packet, %{buffer?: false} = state)
+       when is_map_key(state.tracks, packet.track_id) do
+    case Map.fetch(state.last_sample, packet.track_id) do
+      :error ->
+        last_samples = Map.put(state.last_sample, packet.track_id, packet_to_sample(packet))
+        %{state | last_sample: last_samples}
+
+      {:ok, last_sample} ->
+        variant_name = state.tracks[packet.track_id].type |> to_string()
+        sample = packet_to_sample(packet)
+        last_sample = %{last_sample | duration: sample.dts - last_sample.dts}
+
+        %{
+          state
+          | writer: Writer.write_sample(state.writer, variant_name, last_sample),
+            last_sample: Map.put(state.last_sample, packet.track_id, sample)
+        }
+    end
   end
 
-  defp do_handle_packet(packet, %{buffer?: true} = state) do
+  defp do_handle_packet(packet, state) when is_map_key(state.tracks, packet.track_id) do
     # buffer until we get a video packet
     # and then drop all packets with dts < dts of that video packet
     track = state.tracks[packet.track_id]
@@ -143,24 +166,7 @@ defmodule Shinkai.Sink.Hls do
     end
   end
 
-  defp do_handle_packet(packet, state) do
-    case Map.fetch(state.last_sample, packet.track_id) do
-      :error ->
-        last_samples = Map.put(state.last_sample, packet.track_id, packet_to_sample(packet))
-        %{state | last_sample: last_samples}
-
-      {:ok, last_sample} ->
-        variant_name = state.tracks[packet.track_id].type |> to_string()
-        sample = packet_to_sample(packet)
-        last_sample = %{last_sample | duration: sample.dts - last_sample.dts}
-
-        %{
-          state
-          | writer: Writer.write_sample(state.writer, variant_name, last_sample),
-            last_sample: Map.put(state.last_sample, packet.track_id, sample)
-        }
-    end
-  end
+  defp do_handle_packet(_packet, state), do: state
 
   defp reject?(packet, state, max_dts) do
     track = state.tracks[packet.track_id]
