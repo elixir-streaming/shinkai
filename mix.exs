@@ -12,6 +12,7 @@ defmodule Shinkai.MixProject do
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      releases: releases(),
       # hex
       description: "Media server for Elixir",
       package: package(),
@@ -36,6 +37,7 @@ defmodule Shinkai.MixProject do
       {:hlx, "~> 0.5.0"},
       {:ex_rtmp, "~> 0.4.1"},
       {:yaml_elixir, "~> 2.12"},
+      {:burrito, "~> 1.5.0"},
       {:plug, "~> 1.19", optional: true},
       {:bandit, "~> 1.8", optional: true},
       {:ex_doc, "~> 0.30", only: :dev, runtime: false},
@@ -45,6 +47,23 @@ defmodule Shinkai.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  def releases do
+    [
+      shinkai: [
+        steps: [:assemble, &Burrito.wrap/1],
+        burrito: [
+          targets: [
+            macos: [os: :darwin, cpu: :x86_64],
+            macos_silicon: [os: :darwin, cpu: :aarch64],
+            linux: [os: :linux, cpu: :x86_64],
+            linux_arm: [os: :linux, cpu: :aarch64],
+            windows: [os: :windows, cpu: :x86_64]
+          ]
+        ]
+      ]
+    ]
+  end
 
   defp package do
     [
