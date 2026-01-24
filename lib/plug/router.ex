@@ -66,6 +66,8 @@ if Code.ensure_loaded?(Plug) do
       end
     end
 
+    forward "/webrtc", to: Plug.Shinkai.Router.WebRTC
+
     match _ do
       send_resp(conn, 404, "Not Found")
     end

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Shinkai WebRTC</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                background: black;
+            }
+
+            video {
+                width: 100vw;
+                height: 100vh;
+            }
+        </style>
+    </head>
+    <body>
+        <video id="video" controls autoplay muted></video>
+        <script>
+            (async () => {
+                const avStream = new MediaStream();
+                const pc = new RTCPeerConnection();
+                let response = await fetch("/webrtc/<%= @source_id %>/whep", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/sdp" },
+                    body: "",
+                });
+
+                pc.addEventListener("track", (e) => {
+                    const video = document.getElementById("video");
+                    video.srcObject = e.streams[0];
+                });
+
+                if (response.status == 416) {
+                    const session_url = response.headers.get("Location");
+                    const offer = await response.text();
+                    await pc.setRemoteDescription(
+                        new RTCSessionDescription({
+                            type: "offer",
+                            sdp: offer,
+                        }),
+                    );
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    await fetch(session_url, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/sdp" },
+                        body: pc.localDescription.sdp,
+                    });
+                }
+            })();
+        </script>
+    </body>
+</html>
