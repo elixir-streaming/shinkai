@@ -12,20 +12,21 @@ defmodule Shinkai.Sink.WebRTC do
   alias Phoenix.PubSub
   alias RTSP.RTP.Encoder, as: RTPEncoder
 
-  @supported_codecs [:h264, :h265, :pcma]
+  @supported_codecs [:h264, :h265, :av1, :pcma]
   @video_clock_rate 90_000
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, opts, name: opts[:name])
+    id = {:via, Registry, {Source.Registry, {:webrtc_sink, opts[:id]}}}
+    GenServer.start_link(__MODULE__, opts, name: id)
   end
 
-  @spec add_new_peer(server :: pid() | atom()) :: {:ok, String.t(), String.t()} | {:error, any()}
+  @spec add_new_peer(GenServer.server()) :: {:ok, String.t(), String.t()} | {:error, any()}
   def add_new_peer(server) do
     GenServer.call(server, :add_new_peer)
   end
 
   @spec handle_peer_answer(
-          server :: pid() | atom(),
+          GenServer.server(),
           session_id :: String.t(),
           sdp :: String.t()
         ) :: :ok | {:error, any()}
@@ -33,7 +34,7 @@ defmodule Shinkai.Sink.WebRTC do
     GenServer.call(server, {:handle_peer_answer, session_id, sdp})
   end
 
-  @spec remove_peer(server :: pid() | atom(), session_id :: String.t()) :: :ok
+  @spec remove_peer(GenServer.server(), session_id :: String.t()) :: :ok
   def remove_peer(server, session_id) do
     GenServer.cast(server, {:remove_peer, session_id})
   end
@@ -165,7 +166,7 @@ defmodule Shinkai.Sink.WebRTC do
 
     track_id = track_ctx.id
 
-    Registry.dispatch(Shinkai.Registry, {:webrtc, source_id}, fn peers ->
+    Registry.dispatch(Sink.Registry, {:webrtc, source_id}, fn peers ->
       for {_pid, {pc, _session_id}} <- peers do
         Enum.each(packets, fn rtp_packet ->
           :ok = ExWebRTC.PeerConnection.send_rtp(pc, track_id, rtp_packet)
@@ -196,6 +197,7 @@ defmodule Shinkai.Sink.WebRTC do
 
   defp mime_type(:h264), do: "video/H264"
   defp mime_type(:h265), do: "video/H265"
+  defp mime_type(:av1), do: "video/AV1"
   defp mime_type(:pcma), do: "audio/PCMA"
 
   defp sdp_fmtp_line(:h264, pt) do
@@ -207,10 +209,10 @@ defmodule Shinkai.Sink.WebRTC do
     }
   end
 
-  defp sdp_fmtp_line(:h265, _pt), do: nil
   defp sdp_fmtp_line(_codec, _pt), do: nil
 
   defp payloader_mod(:h264), do: RTPEncoder.H264
   defp payloader_mod(:h265), do: RTPEncoder.H265
+  defp payloader_mod(:av1), do: RTPEncoder.AV1
   defp payloader_mod(:pcma), do: RTPEncoder.G711
 end

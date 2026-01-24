@@ -65,7 +65,7 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
   def handle_call({:remove_peer, session_id}, _from, state) do
     Logger.info("Removing WebRTC peer with session ID: #{session_id}")
 
-    case Registry.match(Shinkai.Registry, {:webrtc, state.source_id}, {:_, session_id}) do
+    case Registry.match(Sink.Registry, {:webrtc, state.source_id}, {:_, session_id}) do
       [{_pid, {pc, _session_id}}] -> unregister(state.source_id, pc)
       [] -> :ok
     end
@@ -138,8 +138,9 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
   end
 
   def handle_info({:ex_webrtc, pid, {:connection_state_change, :connected}}, state) do
+    Logger.info("New WebRTC peer connected")
     {session_id, pc} = Enum.find(state.sessions, fn {_session_id, p} -> p == pid end)
-    Registry.register(Shinkai.Registry, {:webrtc, state.source_id}, {pc, session_id})
+    Registry.register(Sink.Registry, {:webrtc, state.source_id}, {pc, session_id})
     {:noreply, %{state | sessions: Map.delete(state.sessions, session_id)}}
   end
 
@@ -157,7 +158,7 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
     {:noreply, state}
   end
 
-  def handle_info({:ex_webrtc, _pid, msg}, state) do
+  def handle_info({:ex_webrtc, _pid, _msg}, state) do
     # Logger.info("Unhandled ExWebRTC message: #{inspect(msg)}")
     {:noreply, state}
   end
@@ -177,6 +178,6 @@ defmodule Shinkai.Sink.WebRTC.PeerManager do
 
   defp unregister(source_id, pc) do
     PeerConnection.stop(pc)
-    Registry.unregister_match(Shinkai.Registry, {:webrtc, source_id}, {pc, :_})
+    Registry.unregister_match(Sink.Registry, {:webrtc, source_id}, {pc, :_})
   end
 end
