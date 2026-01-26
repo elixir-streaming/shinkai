@@ -37,38 +37,21 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
 
   @spec handle_video_data(tuple(), state()) :: state()
   def handle_video_data({:codec, codec, init_data}, state) do
-    track = Track.new(id: 1, type: :video, codec: codec, timescale: @timescale)
-
     track =
-      case codec do
-        :h264 ->
-          avcc = ExMP4.Box.parse(%ExMP4.Box.Avcc{}, init_data)
-          %{track | codec: :h264, priv_data: {List.first(avcc.sps), avcc.pps}}
-
-        :h265 ->
-          hvcc = ExMP4.Box.parse(%ExMP4.Box.Hvcc{}, init_data)
-
-          %{
-            track
-            | codec: :h265,
-              priv_data: {List.first(hvcc.vps), List.first(hvcc.sps), hvcc.pps}
-          }
-
-        :av1 ->
-          av1c = ExMP4.Box.parse(%ExMP4.Box.Av1c{}, init_data)
-          priv_data = if av1c.config_obus != <<>>, do: av1c.config_obus
-          %{track | codec: :av1, priv_data: priv_data}
-
-        _ ->
-          track
-      end
+      Track.new(
+        id: 1,
+        type: :video,
+        codec: codec,
+        timescale: 90_000,
+        priv_data: track_priv_data(codec, init_data)
+      )
 
     state = %{state | video_track: track}
     if state.audio_track, do: unbuffer(state), else: state
   end
 
   def handle_video_data(sample, %{buffer?: false} = state) do
-    packet = packet_from_sample(state.video_track.id, sample)
+    packet = packet_from_sample(state.video_track, sample)
     PubSub.broadcast(Shinkai.PubSub, state.packets_topic, {:packet, packet})
     state
   end
@@ -80,16 +63,28 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   def handle_video_data(sample, state) do
     %{
       state
-      | packets: [packet_from_sample(state.video_track.id, sample) | state.packets],
+      | packets: [packet_from_sample(state.video_track, sample) | state.packets],
         buffer_len: state.buffer_len + 1
     }
   end
 
   @spec handle_audio_data(tuple(), state()) :: state()
   def handle_audio_data({:codec, codec, init_data}, state) do
-    track = Track.new(id: 2, type: :audio, codec: codec, timescale: @timescale)
+    track =
+      Track.new(
+        id: 2,
+        type: :audio,
+        codec: codec,
+        timescale: @timescale,
+        priv_data: track_priv_data(codec, init_data)
+      )
 
-    track = if codec == :aac, do: %{track | priv_data: init_data}, else: track
+    track =
+      case track.codec do
+        :aac -> %{track | timescale: track.priv_data.sampling_frequency}
+        :opus -> %{track | timescale: 48_000}
+        _codec -> track
+      end
 
     state = %{state | audio_track: track}
     if state.video_track, do: unbuffer(state), else: state
@@ -99,7 +94,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
     PubSub.broadcast(
       Shinkai.PubSub,
       state.packets_topic,
-      {:packet, packet_from_sample(state.audio_track.id, sample)}
+      {:packet, packet_from_sample(state.audio_track, sample)}
     )
 
     state
@@ -112,7 +107,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   def handle_audio_data(sample, state) do
     %{
       state
-      | packets: [packet_from_sample(state.audio_track.id, sample) | state.packets],
+      | packets: [packet_from_sample(state.audio_track, sample) | state.packets],
         buffer_len: state.buffer_len + 1
     }
   end
@@ -135,20 +130,46 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
     %{state | buffer?: false, packets: [], buffer_len: 0}
   end
 
+  defp track_priv_data(:h264, init_data) do
+    avcc = ExMP4.Box.parse(%ExMP4.Box.Avcc{}, init_data)
+    {List.first(avcc.sps), avcc.pps}
+  end
+
+  defp track_priv_data(:h265, init_data) do
+    hvcc = ExMP4.Box.parse(%ExMP4.Box.Hvcc{}, init_data)
+    {List.first(hvcc.vps), List.first(hvcc.sps), hvcc.pps}
+  end
+
+  defp track_priv_data(:av1, init_data) do
+    av1c = ExMP4.Box.parse(%ExMP4.Box.Av1c{}, init_data)
+
+    if av1c.config_obus != <<>>, do: av1c.config_obus
+  end
+
+  defp track_priv_data(:aac, init_data) do
+    MediaCodecs.MPEG4.AudioSpecificConfig.parse(init_data)
+  end
+
+  defp track_priv_data(:opus, _init_data), do: nil
+
+  defp track_priv_data(_codec, init_data), do: init_data
+
   @compile {:inline, packet_from_sample: 2}
-  defp packet_from_sample(track_id, {:sample, payload, dts, pts, sync?}) do
+  defp packet_from_sample(track, {:sample, payload, dts, pts, sync?}) do
     %Packet{
-      track_id: track_id,
+      track_id: track.id,
       data: payload,
-      dts: dts,
-      pts: pts,
+      dts: div(dts * track.timescale, @timescale),
+      pts: div(pts * track.timescale, @timescale),
       sync?: sync?
     }
   end
 
-  defp packet_from_sample(track_id, {:sample, payload, pts}) do
+  defp packet_from_sample(track, {:sample, payload, pts}) do
+    pts = div(pts * track.timescale, @timescale)
+
     %Packet{
-      track_id: track_id,
+      track_id: track.id,
       data: payload,
       dts: pts,
       pts: pts,
