@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  MIX_ENV: prod
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-elixir@v1
+        with:
+          elixir-version: "1.18.4"
+          otp-version: "27.3.4.1"
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.15.2"
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Build release
+        run: mix release
+
+      - name: Create Checksum
+        run: |
+          chmod +x ./burrito_out/*
+          shasum -a 256 ./burrito_out/* > shinkai_checksums.txt
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: true
+
+      - name: Publish archives and packages
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            ./burrito_out/*
+            ./shinkai_checksums.txt
