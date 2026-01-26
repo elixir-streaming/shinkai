@@ -5,6 +5,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
 
   require Logger
 
+  alias MediaCodecs.MPEG4
   alias Phoenix.PubSub
   alias Shinkai.{Packet, Track}
 
@@ -147,7 +148,7 @@ defmodule Shinkai.Sources.RTMP.MediaProcessor do
   end
 
   defp track_priv_data(:aac, init_data) do
-    MediaCodecs.MPEG4.AudioSpecificConfig.parse(init_data)
+    MPEG4.AudioSpecificConfig.parse(init_data)
   end
 
   defp track_priv_data(:opus, _init_data), do: nil

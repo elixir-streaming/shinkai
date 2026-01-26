@@ -1,11 +1,13 @@
 defmodule Shinkai.Test.MediaAssertion do
+  @moduledoc false
+
   use ExUnit.Case
 
   alias MediaCodecs.AV1
 
   @fixtures ["test/fixtures/big_buck_avc_aac.mp4", "test/fixtures/big_buck_av1_opus.mp4"]
 
-  def fixtures(), do: @fixtures
+  def fixtures, do: @fixtures
 
   def assert_tracks("test/fixtures/big_buck_avc_aac.mp4", tracks) do
     assert [
