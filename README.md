@@ -55,7 +55,7 @@ rtmp://localhost:1935/<stream_name>
 ```
 
 ### RTSP
-[RTSP](https://en.wikipedia.org/wiki/Real_Time_Streaming_Protocol) (Real-Time Streaming Protocol) is a network control protocol designed for use in entertainment and communications systems to control streaming media servers.
+[RTSP](https://en.wikipedia.org/wiki/Real_Time_Streaming_Protocol) (Real-Time Streaming Protocol) is an application-level network protocol designed for multiplexing and packetizing multimedia transport streams (such as interactive media, video and audio) over a suitable transport protocol.
 
 To publish a stream to the server using RTSP, you can use `ffmpeg`:
 ```bash
