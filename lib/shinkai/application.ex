@@ -3,6 +3,8 @@ defmodule Shinkai.Application do
 
   use Application
 
+  require Logger
+
   alias Shinkai.Sources
 
   def start(_type, _args) do
@@ -39,6 +41,13 @@ defmodule Shinkai.Application do
       else
         children
       end
+
+    # Macro.camelize(to_string(:live)) is there to create :live macro
+    # because burrito releases fails when an rtmp stream is published with
+    # :live atom not existing.
+    Logger.info(
+      "Shinkai #{Macro.camelize(to_string(:live))} Media Server v#{Application.spec(:shinkai, :vsn)}"
+    )
 
     opts = [strategy: :one_for_one, name: Shinkai.Supervisor]
     Supervisor.start_link(children, opts)
