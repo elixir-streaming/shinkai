@@ -13,7 +13,7 @@ Live streams can be read from the server with:
 
 | Protocol | Variants | Video Codecs | Audio Codecs |
 |----------|----------|--------------|--------------|
-| HLS | fMP4/mpeg-ts/Low Latency | H264, H265, AV1 | MPEG-4(AAC) |
+| HLS | fMP4/mpeg-ts/Low Latency | H264, H265, AV1 | MPEG-4(AAC), Opus |
 | RTMP | - | H264, H265, AV1 | MPEG-4(AAC), G711(PCMA/PCMU), Opus |
 
 ## Usage and configuration
