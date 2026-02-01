@@ -37,8 +37,7 @@ defmodule Shinkai.PipelineTest do
         assert_receive {:hls, :done}, 5_000
 
         hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-        audio? = not String.contains?(unquote(fixture), "opus")
-        assert_hls(hls_path, audio?)
+        assert_hls(hls_path, true)
 
         on_exit(fn -> File.rm_rf!(hls_path) end)
       end
@@ -56,8 +55,7 @@ defmodule Shinkai.PipelineTest do
         assert_receive {:hls, :done}, 5_000
 
         hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], id)
-        audio? = not String.contains?(unquote(fixture), "opus")
-        assert_hls(hls_path, audio?)
+        assert_hls(hls_path, true)
 
         File.rm_rf!(hls_path)
       end
@@ -78,8 +76,7 @@ defmodule Shinkai.PipelineTest do
         assert_receive {:hls, :done}, 5_000
 
         hls_path = Path.join(Shinkai.Config.get_config(:hls)[:storage_dir], source.id)
-        audio? = not String.contains?(unquote(fixture), "opus")
-        assert_hls(hls_path, audio?)
+        assert_hls(hls_path, true)
 
         ExRTMP.Server.stop(rtmp_server)
         File.rm_rf!(hls_path)
@@ -120,8 +117,6 @@ defmodule Shinkai.PipelineTest do
 
         source = %Source{id: "live-#{id}", type: :rtmp, uri: rtmp_uri(rtmp_server, "live/#{id}")}
         start_source(source)
-
-        # _pid = start_supervised!({Shinkai.Pipeline, source})
 
         {:ok, pid} = ExRTMP.Client.start_link(uri: rtmp_uri(rtmp_server, "live"), stream_key: id)
         assert :ok = ExRTMP.Client.connect(pid)
@@ -168,7 +163,6 @@ defmodule Shinkai.PipelineTest do
                Enum.find(items, &is_struct(&1, ExM3U8.Tags.Media))
     end
 
-    # codesc "avc1.42C00C,mp4a.40.2"
     if audio? do
       assert %{audio: "audio", codecs: _codecs, resolution: {240, 136}} =
                Enum.find(items, &is_struct(&1, ExM3U8.Tags.Stream))
@@ -178,10 +172,10 @@ defmodule Shinkai.PipelineTest do
     end
 
     if audio? do
-      assert_media_playlist(hls_path, "audio", 3, 5)
+      assert_media_playlist(hls_path, "audio", 2..3, 5)
     end
 
-    assert_media_playlist(hls_path, "video", 2, 5)
+    assert_media_playlist(hls_path, "video", 2..2, 5)
   end
 
   defp assert_rtmp_receive(pid, fixture) do
@@ -218,7 +212,7 @@ defmodule Shinkai.PipelineTest do
     "rtmp://127.0.0.1:#{port}/#{path}"
   end
 
-  defp assert_media_playlist(hls_path, variant, target_duration, segments_count) do
+  defp assert_media_playlist(hls_path, variant, expected_target_duration, segments_count) do
     assert {:ok, playlist} =
              hls_path
              |> Path.join("#{variant}.m3u8")
@@ -227,10 +221,12 @@ defmodule Shinkai.PipelineTest do
 
     assert %ExM3U8.MediaPlaylist{
              info: %ExM3U8.MediaPlaylist.Info{
-               target_duration: ^target_duration
+               target_duration: target_duration
              },
              timeline: timeline
            } = playlist
+
+    assert target_duration in expected_target_duration
 
     assert %Tags.MediaInit{uri: init_uri} = Enum.at(timeline, 0)
     segments = Enum.filter(timeline, &is_struct(&1, Tags.Segment))

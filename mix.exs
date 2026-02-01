@@ -34,7 +34,7 @@ defmodule Shinkai.MixProject do
     [
       {:phoenix_pubsub, "~> 2.2"},
       {:rtsp, "~> 0.8.0"},
-      {:hlx, "~> 0.5.0"},
+      {:hlx, "~> 0.6.0"},
       {:ex_rtmp, "~> 0.4.1"},
       {:yaml_elixir, "~> 2.12"},
       {:burrito, "~> 1.5.0"},

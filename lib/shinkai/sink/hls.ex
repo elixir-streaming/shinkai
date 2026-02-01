@@ -13,7 +13,7 @@ defmodule Shinkai.Sink.Hls do
   alias HLX.Writer
   alias Phoenix.PubSub
 
-  @supported_codecs [:h264, :h265, :av1, :aac]
+  @supported_codecs [:h264, :h265, :av1, :aac, :opus]
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name])
